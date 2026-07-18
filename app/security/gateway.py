@@ -118,11 +118,16 @@ class HiddenLayerGateway:
         real HiddenLayer is in the path.
         """
 
+        is_mock = bool(self._adapter.is_mock)
         return {
             "component": "security_gateway",
             "mode": "live" if self._config.is_live else "mock",
             "adapter": self._adapter.name,
-            "is_mock": bool(self._adapter.is_mock),
+            # Both keys intentionally: `is_mock` for degraded-mode logic and
+            # `mock` as the field name the /ready check surfaces (mirrors how
+            # the inference check reports `mock`).
+            "is_mock": is_mock,
+            "mock": is_mock,
             "fail_closed": self._config.fail_closed,
             "healthy": self._adapter.health(),
         }

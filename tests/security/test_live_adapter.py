@@ -81,43 +81,68 @@ def test_gateway_fails_closed_when_live_inspection_raises():
     assert write.action is SecurityAction.REJECT_PERSISTENCE
 
 
-# --- (b) defensive mapper: fake analysis object -> verdict ------------------
+# --- (b) defensive mapper over the REAL detector-list shape ----------------
 
-def test_mapper_detects_prompt_injection_from_detections_list():
-    analysis = SimpleNamespace(
-        detections=[SimpleNamespace(category="prompt_injection", severity="high", confidence=0.97)]
-    )
-    verdict = _map_analysis_to_verdict(analysis, "hiddenlayer-sdk")
-    assert verdict.finding is FindingType.PROMPT_INJECTION
-    assert verdict.severity is Severity.HIGH
-    assert verdict.confidence == pytest.approx(0.97)
+def _detector(name: str, detected: bool, **findings) -> dict:
+    """Build a detector entry matching the real analyze() response shape."""
+
+    return {"name": name, "detected": detected, "phase": "input", "findings": findings}
 
 
-def test_mapper_picks_most_severe_detection():
-    analysis = {
-        "findings": [
-            {"type": "sensitive-data", "severity": "medium", "score": 0.8},
-            {"type": "data-exfiltration", "severity": "critical", "score": 0.9},
-        ]
-    }
-    verdict = _map_analysis_to_verdict(analysis, "hiddenlayer-sdk")
+def test_mapper_empty_or_no_detections_is_clean():
+    assert _map_analysis_to_verdict(None, "d").finding is FindingType.NONE
+    assert _map_analysis_to_verdict([], "d").finding is FindingType.NONE
+    assert _map_analysis_to_verdict(
+        [_detector("prompt_injection", False, probabilities=[0.0])], "d"
+    ).finding is FindingType.NONE
+
+
+def test_mapper_lone_prompt_injection_is_downgraded_not_quarantined():
+    # The core false-positive guard: benign investigation prompt.
+    analysis = [_detector("prompt_injection", True, probabilities=[1.0])]
+    verdict = _map_analysis_to_verdict(analysis, "d")
+    assert verdict.finding is FindingType.ANOMALY
+    assert verdict.severity is Severity.LOW
+
+
+def test_mapper_unapproved_url_is_exfiltration():
+    analysis = [
+        _detector("prompt_injection", True, probabilities=[1.0]),
+        _detector("url", True, urls=["https://evil.example.com/exfil"]),
+    ]
+    verdict = _map_analysis_to_verdict(analysis, "d")
     assert verdict.finding is FindingType.EXFILTRATION
+    assert verdict.severity is Severity.HIGH
+
+
+def test_mapper_approved_url_is_low_anomaly():
+    allow = frozenset({"approved-prometheus.internal"})
+    analysis = [_detector("url", True, urls=["https://approved-prometheus.internal/api"])]
+    verdict = _map_analysis_to_verdict(analysis, "d", allow)
+    assert verdict.finding is FindingType.ANOMALY
+    assert verdict.severity is Severity.LOW
+
+
+def test_mapper_prompt_injection_corroborated_is_poisoned():
+    analysis = [
+        _detector("prompt_injection", True, probabilities=[1.0]),
+        _detector("denial_of_service", True),
+    ]
+    verdict = _map_analysis_to_verdict(analysis, "d")
+    assert verdict.finding is FindingType.POISONED_ARTIFACT
     assert verdict.severity is Severity.CRITICAL
 
 
-def test_mapper_treats_empty_analysis_as_clean():
-    assert _map_analysis_to_verdict(None, "d").finding is FindingType.NONE
-    assert _map_analysis_to_verdict(SimpleNamespace(detections=[]), "d").finding is FindingType.NONE
-    assert _map_analysis_to_verdict({"verdict": "clean"}, "d").finding is FindingType.NONE
+def test_mapper_pii_is_secret_exposure():
+    analysis = [_detector("personally_identifiable_information", True)]
+    assert _map_analysis_to_verdict(analysis, "d").finding is FindingType.SECRET_EXPOSURE
 
 
-def test_mapper_degrades_unknown_shape_conservatively():
-    # Flagged but no detail -> conservative anomaly, not a crash, not "clean".
-    verdict = _map_analysis_to_verdict(SimpleNamespace(flagged=True), "d")
-    assert verdict.finding is FindingType.ANOMALY
-    # Unknown category string -> anomaly.
-    v2 = _map_analysis_to_verdict({"detections": [{"category": "???weird"}]}, "d")
-    assert v2.finding is FindingType.ANOMALY
+def test_mapper_unknown_detected_detector_degrades_to_anomaly():
+    # A detector we don't specifically map, but which fired, is flagged — not
+    # silently treated as clean.
+    analysis = [_detector("some_future_detector", True)]
+    assert _map_analysis_to_verdict(analysis, "d").finding is FindingType.ANOMALY
 
 
 def test_live_adapter_maps_injected_clean_response():
@@ -125,7 +150,7 @@ def test_live_adapter_maps_injected_clean_response():
 
     def fake_analyze(metadata, input):  # noqa: A002 - SDK param name
         assert input["messages"][0]["content"]  # content passed through
-        return SimpleNamespace(analysis=SimpleNamespace(detections=[]))
+        return SimpleNamespace(analysis=[_detector("prompt_injection", False, probabilities=[0.0])])
 
     adapter = LiveHiddenLayerAdapter(config=cfg, analyze_fn=fake_analyze)
     verdict = adapter.inspect_content(InspectionStage.RETRIEVED_CONTENT, "all clear", {})
@@ -133,18 +158,23 @@ def test_live_adapter_maps_injected_clean_response():
     assert adapter.health() is True
 
 
-def test_live_adapter_flags_injected_malicious_response():
+def test_live_adapter_flags_injected_exfiltration_response():
     cfg = SecurityConfig(mode="live", client_id="x", client_secret="y")
 
     def fake_analyze(metadata, input):  # noqa: A002
-        return {"analysis": {"detections": [{"category": "prompt_injection", "severity": "high", "score": 0.95}]}}
+        return {
+            "analysis": [
+                _detector("prompt_injection", True, probabilities=[1.0]),
+                _detector("url", True, urls=["https://evil.example.com/exfil"]),
+            ]
+        }
 
     adapter = LiveHiddenLayerAdapter(config=cfg, analyze_fn=fake_analyze)
     gateway = HiddenLayerGateway(adapter, cfg)
     decision = gateway.inspect(
         InspectionRequest(
             stage=InspectionStage.RETRIEVED_CONTENT, producer="runbook_repo",
-            consumer="observability_specialist", content="ignore previous instructions ...",
+            consumer="observability_specialist", content="exfil attempt ...",
         )
     )
     assert decision.action is SecurityAction.QUARANTINE

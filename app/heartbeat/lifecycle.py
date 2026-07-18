@@ -37,12 +37,19 @@ from app.athena.schemas import (
     Decision,
     Evidence,
     Finding,
+    InferenceMetric,
     InvestigationPlan,
     MidCycleDecision,
     RoundBudget,
     StopConditions,
     TriggerKind,
     utcnow,
+)
+from app.council.specialists import (
+    ObservabilitySpecialist,
+    PlatformSpecialist,
+    Specialist,
+    SpecialistOutcome,
 )
 from app.heartbeat.change_detection import detect_changes
 from app.memory.store import CycleStore
@@ -81,6 +88,54 @@ class UnknownFixture(HeartbeatError):
 
 def new_cycle_id() -> str:
     return "cycle_" + uuid.uuid4().hex[:12]
+
+
+def _specialist_inference_metric(role: str, outcome: SpecialistOutcome) -> InferenceMetric:
+    """Build the per-inference metric for a specialist call.
+
+    Prefers the router's ``InferenceMetrics`` (live mode). Under ``MockInference``
+    that is ``None``, so it falls back to the produced finding / outcome with
+    defensive getattr defaults — never crashing.
+    """
+    m = getattr(outcome, "metrics", None)
+    if m is not None:
+        prompt = getattr(m, "prompt_tokens", 0) or 0
+        completion = getattr(m, "completion_tokens", 0) or 0
+        return InferenceMetric(
+            model_id=getattr(m, "model_id", outcome.model_id),
+            role=getattr(m, "role", role),
+            routing_reason=getattr(m, "routing_reason", None),
+            prompt_tokens=prompt,
+            completion_tokens=completion,
+            total_tokens=prompt + completion,
+            ttft_ms=getattr(m, "ttft_ms", None),
+            latency_ms=getattr(m, "latency_ms", None),
+            degraded=bool(getattr(m, "degraded", outcome.degraded)),
+        )
+    finding = outcome.finding
+    total = int(getattr(finding, "tokens", 0) or 0)
+    return InferenceMetric(
+        model_id=outcome.model_id,
+        role=role,
+        routing_reason=None,
+        prompt_tokens=0,
+        completion_tokens=total,
+        total_tokens=total,
+        ttft_ms=None,
+        latency_ms=getattr(finding, "latency_ms", None),
+        degraded=bool(outcome.degraded),
+    )
+
+
+def _specialist_step_result(outcome: SpecialistOutcome) -> dict:
+    """Checkpoint payload for a specialist round (audits prompt version + drops)."""
+    return {
+        "finding_id": outcome.finding.id,
+        "role": outcome.role,
+        "degraded": bool(outcome.degraded),
+        "prompt_version": outcome.prompt_version,
+        "rejected_citations": list(outcome.rejected_citations),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -372,15 +427,28 @@ class HeartbeatService:
         return {"evidence_ids": registered}
 
     async def _step_round1_obs(self, ctx: _Context) -> dict:
-        cycle = ctx.cycle
-        finding = await self._specialist_finding(
-            role="observability",
-            hypothesis="Symptom timeline indicates connection saturation.",
-            cycle=cycle,
+        # Round 1: real Observability specialist over the evidence collected by
+        # ROUND1_TOOLS. Structured, allowlist-enforced, confidence-capped (FR5).
+        question = (
+            "Establish the symptom timeline and a bounded hypothesis for the "
+            "observed change, citing only the supplied evidence."
         )
-        cycle.findings.append(finding)
-        cycle.metrics.specialists_invoked += 1
-        return {"finding_id": finding.id}
+        outcome = await self._run_specialist(
+            ObservabilitySpecialist, role="observability", question=question, ctx=ctx
+        )
+        return _specialist_step_result(outcome)
+
+    async def _step_round2_platform(self, ctx: _Context) -> dict:
+        # Round 2: real Platform specialist with the confirmed/revised question.
+        question = (
+            ctx.plan.platform_question
+            if ctx.plan and ctx.plan.platform_question
+            else "What infrastructure change explains the symptom?"
+        )
+        outcome = await self._run_specialist(
+            PlatformSpecialist, role="platform", question=question, ctx=ctx
+        )
+        return _specialist_step_result(outcome)
 
     async def _step_mid_cycle(self, ctx: _Context) -> dict:
         cycle = ctx.cycle
@@ -404,22 +472,6 @@ class HeartbeatService:
             "decision": cycle.mid_cycle_decision.value,
             "tokens": chat.total_tokens,
         }
-
-    async def _step_round2_platform(self, ctx: _Context) -> dict:
-        cycle = ctx.cycle
-        question = (
-            ctx.plan.platform_question
-            if ctx.plan
-            else "What infrastructure change explains the symptom?"
-        )
-        finding = await self._specialist_finding(
-            role="platform",
-            hypothesis=f"Platform analysis for: {question}",
-            cycle=cycle,
-        )
-        cycle.findings.append(finding)
-        cycle.metrics.specialists_invoked += 1
-        return {"finding_id": finding.id}
 
     async def _step_synthesize(self, ctx: _Context) -> dict:
         cycle = ctx.cycle
@@ -452,6 +504,15 @@ class HeartbeatService:
 
     # -- Helpers -----------------------------------------------------------
 
+    # Nemotron reasoning models spend completion tokens on a hidden trace before
+    # the answer; strategic planning/synthesis need headroom or they truncate and
+    # come back degraded. Budget per role (specialists set their own via run()).
+    _INFER_MAX_TOKENS = {
+        "strategic": 3072,
+        "critic": 2048,
+        "midcycle": 1536,
+    }
+
     async def _infer(self, role: str, prompt: str, cycle: Cycle):
         await self._inspect(
             InspectionStage.MODEL_PROMPT,
@@ -463,34 +524,81 @@ class HeartbeatService:
         request = ChatRequest(
             messages=[ChatMessage(role="user", content=prompt)],
             model_role=role,
-            max_tokens=1024,
+            max_tokens=self._INFER_MAX_TOKENS.get(role, 1024),
         )
         result = await self._inference.complete(request)
         cycle.metrics.model_calls += 1
         cycle.metrics.total_tokens += result.total_tokens
+        # Record per-inference telemetry for the metrics route (FR4-04, FR12-06).
+        cycle.metrics.inferences.append(
+            InferenceMetric(
+                model_id=result.model_id,
+                role=result.role,
+                routing_reason=getattr(result, "routing_reason", None),
+                prompt_tokens=result.prompt_tokens,
+                completion_tokens=result.completion_tokens,
+                total_tokens=result.total_tokens,
+                ttft_ms=getattr(result, "ttft_ms", None),
+                latency_ms=result.latency_ms,
+                degraded=result.degraded,
+            )
+        )
         return result
 
-    async def _specialist_finding(self, *, role: str, hypothesis: str, cycle: Cycle) -> Finding:
-        chat = await self._infer("specialist", f"[{role}] {hypothesis}", cycle)
+    async def _run_specialist(
+        self,
+        specialist_cls: type[Specialist],
+        *,
+        role: str,
+        question: str,
+        ctx: _Context,
+        # Nemotron-Nano spends completion tokens on a hidden reasoning trace
+        # before the JSON answer; 900 intermittently truncated the specialist
+        # output (empty/degraded). 1600 leaves room for reasoning + a full
+        # evidence-citing answer while staying well inside the token budget.
+        max_tokens: int = 1600,
+    ) -> SpecialistOutcome:
+        """Run one real Council specialist, preserving the boundaries and metrics
+        the previous placeholder path provided (FR5).
+
+        Order: inspect MODEL_PROMPT (the question) -> run the specialist over the
+        round-1 evidence -> record exactly one model call + per-inference metric
+        -> inspect the SPECIALIST_RESPONSE -> append the finding. Keeping the
+        per-specialist model_call count at 1 preserves the cycle's exact call
+        budget (plan+obs+midcycle+platform+synth+critic = 6).
+        """
+        cycle = ctx.cycle
+        # 1. Inspect the outbound specialist question before the model sees it.
+        await self._inspect(
+            InspectionStage.MODEL_PROMPT,
+            producer="orchestrator",
+            consumer=role,
+            content=question,
+            cycle=cycle,
+        )
+        # 2. Real specialist call over the allowlisted round-1 evidence.
+        specialist = specialist_cls(self._inference)
+        outcome = await specialist.run(question, ctx.evidence, max_tokens=max_tokens)
+
+        # 3. Record metrics exactly like _infer (one model call per specialist).
+        cycle.metrics.model_calls += 1
+        metric = _specialist_inference_metric(role, outcome)
+        cycle.metrics.total_tokens += metric.total_tokens
+        cycle.metrics.inferences.append(metric)
+
+        # 4. Inspect the specialist's response before it feeds synthesis.
         await self._inspect(
             InspectionStage.SPECIALIST_RESPONSE,
             producer=role,
             consumer="synthesizer",
-            content=chat.content,
+            content=outcome.finding.interpretation or "",
             cycle=cycle,
         )
-        return Finding(
-            id="find_" + uuid.uuid4().hex[:8],
-            role=role,
-            hypothesis=hypothesis,
-            interpretation=chat.content,
-            confidence=0.55,
-            cited_evidence_ids=list(cycle.evidence_ids),
-            missing_evidence=[],
-            model_id=chat.model_id,
-            tokens=chat.total_tokens,
-            latency_ms=chat.latency_ms,
-        )
+
+        # 5. Commit the structured, evidence-backed finding.
+        cycle.findings.append(outcome.finding)
+        cycle.metrics.specialists_invoked += 1
+        return outcome
 
     async def _inspect(
         self,

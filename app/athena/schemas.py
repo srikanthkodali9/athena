@@ -260,6 +260,25 @@ class Checkpoint(BaseModel):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class InferenceMetric(BaseModel):
+    """Per-inference telemetry (FR4-04, FR12-06).
+
+    Captured for every model call so the demo can show tiered routing, token
+    usage, time-to-first-token, latency, and degraded mode.
+    """
+
+    schema_version: str = SCHEMA_VERSION
+    model_id: Optional[str] = None
+    role: str
+    routing_reason: Optional[str] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    ttft_ms: Optional[float] = None
+    latency_ms: Optional[float] = None
+    degraded: bool = False
+
+
 class CycleMetrics(BaseModel):
     model_calls: int = 0
     tool_calls: int = 0
@@ -267,6 +286,9 @@ class CycleMetrics(BaseModel):
     total_tokens: int = 0
     security_inspections: int = 0
     duration_ms: Optional[float] = None
+    # One record per inference (model_id, role, routing_reason, tokens, ttft,
+    # latency, degraded). Aggregates above stay for quick reads.
+    inferences: list[InferenceMetric] = Field(default_factory=list)
 
 
 class Cycle(BaseModel):

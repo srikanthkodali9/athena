@@ -84,6 +84,10 @@ class ChatResult:
     completion_tokens: int = 0
     latency_ms: float = 0.0
     degraded: bool = False
+    # Wave-2 metrics the live router (inference_engineer) populates: time to
+    # first token and the human-readable reason this tier/model was routed.
+    ttft_ms: Optional[float] = None
+    routing_reason: Optional[str] = None
 
     @property
     def total_tokens(self) -> int:

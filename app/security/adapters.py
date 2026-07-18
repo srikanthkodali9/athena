@@ -16,6 +16,7 @@ adapter raises :class:`InspectionUnavailable` so the gateway can fail closed.
 
 from __future__ import annotations
 
+import fnmatch
 import re
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -155,30 +156,8 @@ def _any(patterns: list[re.Pattern[str]], text: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Live adapter boundary (httpx -> ATHENA_SECURITY_BASE_URL)
+# Live adapter boundary (HiddenLayer SDK -> interactions.analyze)
 # ---------------------------------------------------------------------------
-
-_FINDING_ALIASES = {
-    "prompt_injection": FindingType.PROMPT_INJECTION,
-    "jailbreak": FindingType.PROMPT_INJECTION,
-    "exfiltration": FindingType.EXFILTRATION,
-    "data_exfiltration": FindingType.EXFILTRATION,
-    "credential_access": FindingType.CREDENTIAL_ACCESS,
-    "secret": FindingType.SECRET_EXPOSURE,
-    "pii": FindingType.SECRET_EXPOSURE,
-    "poisoned": FindingType.POISONED_ARTIFACT,
-    "anomaly": FindingType.ANOMALY,
-}
-
-_SEVERITY_ALIASES = {
-    "info": Severity.INFO,
-    "informational": Severity.INFO,
-    "low": Severity.LOW,
-    "medium": Severity.MEDIUM,
-    "moderate": Severity.MEDIUM,
-    "high": Severity.HIGH,
-    "critical": Severity.CRITICAL,
-}
 
 
 @dataclass
@@ -200,6 +179,12 @@ class LiveHiddenLayerAdapter:
     name: str = "hiddenlayer-sdk"
     is_mock: bool = False
     analyze_fn: object | None = None  # optional injected callable for tests
+    #: OpenShell egress-allowlist host patterns. A URL detection pointing at a
+    #: host NOT on this allowlist is treated as exfiltration; a URL on it is a
+    #: low-signal anomaly. ``None`` = conservative (every external URL is
+    #: treated as unapproved). Injected by the orchestrator; kept as read-only
+    #: reference data so trust derivation never *enforces* capability.
+    egress_allowlist: frozenset[str] | None = None
     _client: object | None = None  # lazily-created hiddenlayer.HiddenLayer
 
     def _get_analyze(self):
@@ -264,10 +249,9 @@ class LiveHiddenLayerAdapter:
             raise InspectionUnavailable(
                 f"HiddenLayer inspection failed: {type(exc).__name__}"
             ) from exc
-        analysis = getattr(response, "analysis", None)
-        if analysis is None and isinstance(response, dict):
-            analysis = response.get("analysis")
-        return _map_analysis_to_verdict(analysis, self.name)
+        return _map_analysis_to_verdict(
+            _extract_analysis(response), self.name, self.egress_allowlist
+        )
 
     def health(self) -> bool:
         # A real analyze call is neither free nor safe to spam during a demo.
@@ -308,68 +292,50 @@ def _get(obj: object, key: str, default: object = None) -> object:
     return getattr(obj, key, default)
 
 
-def _map_analysis_to_verdict(analysis: object, detector: str) -> HiddenLayerVerdict:
-    """Map a HiddenLayer ``response.analysis`` to a :class:`HiddenLayerVerdict`.
+def _extract_analysis(response: object) -> object:
+    """Pull the analysis list out of an SDK response, dict, or namespace.
 
-    VERIFY against the real HiddenLayer response shape before the live demo.
-    The exact structure of ``response.analysis`` is not publicly documented, so
-    this reads defensively: it looks for a list of detections/findings under a
-    few likely keys, maps each detection's category/type to our
-    :class:`FindingType`, and keeps the most severe. Anything unexpected
-    degrades to a conservative verdict rather than crashing. "No detections"
-    (or a clean/verdict flag) is treated as :data:`FindingType.NONE`.
+    The real SDK returns a pydantic model whose ``model_dump()["analysis"]`` is
+    a list of detector dicts; fakes may pass a dict or namespace. Try each.
     """
 
-    # Empty analysis -> clean.
-    if analysis is None:
-        return HiddenLayerVerdict(FindingType.NONE, Severity.INFO, 0.99, detector)
+    dump = getattr(response, "model_dump", None)
+    if callable(dump):
+        try:
+            data = dump()
+            if isinstance(data, dict) and "analysis" in data:
+                return data["analysis"]
+        except Exception:  # pragma: no cover - defensive
+            pass
+    analysis = _get(response, "analysis")
+    return analysis
 
-    # Some responses may carry a top-level verdict / flagged flag.
-    verdict_flag = _get(analysis, "verdict", _get(analysis, "flagged"))
-    if isinstance(verdict_flag, str) and verdict_flag.lower() in {"clean", "safe", "allow", "pass"}:
-        return HiddenLayerVerdict(FindingType.NONE, Severity.INFO, 0.99, detector)
 
-    # Find the detections list under any of the likely keys.
-    detections = None
-    for key in ("detections", "findings", "results", "detected", "categories"):
-        candidate = _get(analysis, key)
-        if candidate:
-            detections = candidate
-            break
+def _host_of(url: str) -> str:
+    dest = str(url).strip()
+    if "://" in dest:
+        dest = dest.split("://", 1)[1]
+    dest = dest.split("/", 1)[0].rsplit("@", 1)[-1].split(":", 1)[0]
+    return dest.lower()
 
-    if not detections:
-        # No detections found. If an explicit boolean flag says flagged=True but
-        # gave no detail, be conservative (anomaly); otherwise treat as clean.
-        if verdict_flag is True:
-            return HiddenLayerVerdict(FindingType.ANOMALY, Severity.MEDIUM, 0.6, detector)
-        return HiddenLayerVerdict(FindingType.NONE, Severity.INFO, 0.99, detector)
 
-    if not isinstance(detections, (list, tuple)):
-        detections = [detections]
+def _url_is_approved(url: str, allowlist: frozenset[str] | None) -> bool:
+    """A URL is approved only if its host matches the OpenShell egress allowlist.
 
-    best: HiddenLayerVerdict | None = None
-    categories: list[str] = []
-    for det in detections:
-        raw_cat = str(
-            _get(det, "category", _get(det, "type", _get(det, "name", ""))) or ""
-        ).lower().strip()
-        if raw_cat:
-            categories.append(raw_cat)
-        finding = _match_finding(raw_cat)
-        sev_raw = str(_get(det, "severity", "medium")).lower()
-        severity = _SEVERITY_ALIASES.get(sev_raw, Severity.MEDIUM)
-        confidence = _coerce_confidence(
-            _get(det, "confidence", _get(det, "score", _get(det, "risk", 0.9)))
-        )
-        candidate = HiddenLayerVerdict(finding, severity, confidence, detector)
-        if best is None or _more_severe(candidate, best):
-            best = candidate
+    ``None`` means we have no allowlist to consult, so we treat every external
+    URL as unapproved (conservative). This uses the allowlist purely as
+    read-only reference data for a trust heuristic — it does not *enforce*
+    egress (that stays with OpenShell).
+    """
 
-    if best is None:
-        return HiddenLayerVerdict(FindingType.NONE, Severity.INFO, 0.99, detector)
-    return HiddenLayerVerdict(
-        best.finding, best.severity, best.confidence, detector, tuple(categories)
-    )
+    if not allowlist:
+        return False
+    host = _host_of(url)
+    for pattern in allowlist:
+        p = pattern.lower()
+        if host == p or fnmatch.fnmatch(host, p) or host.endswith("." + p):
+            return True
+    return False
 
 
 _SEVERITY_RANK = {
@@ -381,33 +347,89 @@ _SEVERITY_RANK = {
 }
 
 
-def _more_severe(a: HiddenLayerVerdict, b: HiddenLayerVerdict) -> bool:
-    ra, rb = _SEVERITY_RANK[a.severity], _SEVERITY_RANK[b.severity]
-    if ra != rb:
-        return ra > rb
-    return a.confidence > b.confidence
+def _map_analysis_to_verdict(
+    analysis: object,
+    detector: str,
+    egress_allowlist: frozenset[str] | None = None,
+) -> HiddenLayerVerdict:
+    """Map a real HiddenLayer ``analysis`` list to a :class:`HiddenLayerVerdict`.
 
+    Derived from REAL captured `interactions.analyze` responses
+    (tests/security/data/hl_*.json). ``analysis`` is a LIST of detector objects
+    ``{name, detected, phase, findings{probabilities, urls, ...}}`` spanning
+    both input and output phases.
 
-def _match_finding(raw_category: str) -> FindingType:
-    """Map a HiddenLayer detection category string to our FindingType."""
+    GATING POLICY (one sentence): quarantine/block only on high-signal or
+    corroborated evidence — an unapproved-URL exfiltration, a PII/credential
+    detection, or prompt_injection corroborated by another malicious signal —
+    while a LONE prompt_injection is downgraded to a logged anomaly because the
+    real data showed it firing at probability 1.0 on a perfectly benign
+    investigation prompt (a false positive that would otherwise quarantine
+    normal work). Only this verdict derivation is HiddenLayer-specific; the
+    resulting action is chosen by the gateway's §14.4 response policy.
 
-    if not raw_category:
-        return FindingType.ANOMALY
-    text = raw_category.replace("-", "_").replace(" ", "_")
-    # Direct alias first.
-    if text in _FINDING_ALIASES:
-        return _FINDING_ALIASES[text]
-    # Substring signals (defensive; categories may be verbose).
-    if "inject" in text or "jailbreak" in text or "prompt" in text:
-        return FindingType.PROMPT_INJECTION
-    if "exfil" in text or "leak" in text:
-        return FindingType.EXFILTRATION
-    if "credential" in text or "secret_access" in text:
-        return FindingType.CREDENTIAL_ACCESS
-    if "secret" in text or "pii" in text or "sensitive" in text:
-        return FindingType.SECRET_EXPOSURE
-    if "poison" in text or "backdoor" in text:
-        return FindingType.POISONED_ARTIFACT
-    if "suspicious" in text or "policy" in text:
-        return FindingType.SUSPICIOUS_INSTRUCTION
-    return FindingType.ANOMALY
+    Everything is read defensively (attr-or-dict, missing keys tolerated) so an
+    unexpected shape degrades to a conservative verdict instead of crashing.
+    Still, VERIFY against fresh HiddenLayer responses if detector names,
+    findings keys, or phases change.
+    """
+
+    if analysis is None:
+        return HiddenLayerVerdict(FindingType.NONE, Severity.INFO, 0.99, detector)
+    if not isinstance(analysis, (list, tuple)):
+        analysis = [analysis]
+
+    # Collapse per-detector entries across input/output phases.
+    detected: set[str] = set()
+    urls: list[str] = []
+    probabilities: list[float] = []
+    for entry in analysis:
+        name = str(_get(entry, "name", "") or "").lower().strip()
+        if not name or not bool(_get(entry, "detected")):
+            continue
+        detected.add(name)
+        findings = _get(entry, "findings", {}) or {}
+        for u in (_get(findings, "urls", []) or []):
+            urls.append(str(u))
+        for p in (_get(findings, "probabilities", []) or []):
+            try:
+                probabilities.append(float(p))
+            except (TypeError, ValueError):
+                continue
+
+    if not detected:
+        return HiddenLayerVerdict(FindingType.NONE, Severity.INFO, 0.99, detector)
+
+    unapproved_urls = [u for u in urls if not _url_is_approved(u, egress_allowlist)]
+    has_pi = "prompt_injection" in detected
+    has_pii = "personally_identifiable_information" in detected
+    has_dos = "denial_of_service" in detected
+    has_guardrails = "guardrails" in detected
+
+    # prompt_injection is corroborated when a second malicious signal is present.
+    pi_corroborated = bool(unapproved_urls or has_pii or has_dos or has_guardrails)
+
+    # Precedence (strongest differentiator first). See gating policy above.
+    if unapproved_urls:
+        finding, severity = FindingType.EXFILTRATION, Severity.HIGH
+    elif has_pi and pi_corroborated:
+        finding, severity = FindingType.POISONED_ARTIFACT, Severity.CRITICAL
+    elif has_pii:
+        finding, severity = FindingType.SECRET_EXPOSURE, Severity.HIGH
+    elif has_guardrails:
+        finding, severity = FindingType.SUSPICIOUS_INSTRUCTION, Severity.MEDIUM
+    elif has_dos:
+        finding, severity = FindingType.ANOMALY, Severity.MEDIUM
+    elif has_pi:
+        # LONE prompt_injection: unreliable (benign FP at prob 1.0). Log + flag,
+        # do NOT exclude/quarantine so investigation prompts keep flowing.
+        finding, severity = FindingType.ANOMALY, Severity.LOW
+    else:
+        # Something fired (url/code, or a detector we don't specifically map).
+        # Flag it as a low anomaly rather than silently treating it as clean.
+        finding, severity = FindingType.ANOMALY, Severity.LOW
+
+    confidence = max(probabilities) if probabilities else 0.9
+    return HiddenLayerVerdict(
+        finding, severity, confidence, detector, tuple(sorted(detected))
+    )

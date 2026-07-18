@@ -31,7 +31,9 @@ def test_ready_reports_modes(client):
     body = r.json()
     assert body["status"] == "ready"
     assert body["checks"]["inference"]["mock"] is True
-    assert body["checks"]["security"]["mock"] is True
+    # Security readiness comes from the real gateway (mock adapter in tests).
+    assert body["checks"]["security"]["is_mock"] is True
+    assert body["checks"]["security"]["adapter"] == "local-mock"
     assert body["checks"]["storage"]["ready"] is True
     assert body["degraded_mode"] is True
 

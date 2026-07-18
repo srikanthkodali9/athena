@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.dependencies import build_context
 from app.api.errors import AthenaHTTPError, athena_error_handler, error_body
-from app.api.routes import heartbeats, system
+from app.api.routes import heartbeats, metrics, security, system
 from app.athena.config import Settings, get_settings
 
 
@@ -61,6 +61,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(system.router)
     app.include_router(heartbeats.router)
+    app.include_router(metrics.router)
+    app.include_router(security.router)
     return app
 
 
