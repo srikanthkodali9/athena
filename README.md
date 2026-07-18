@@ -16,6 +16,7 @@ The repository is currently in the planning and documentation stage. Implementat
 - [API and endpoint map](docs/api-endpoints.md)
 - [Functional-requirement backlog](docs/functional-requirements.md)
 - [Implementation roadmap](docs/implementation-roadmap.md)
+- [Development sub-agent roster](.agents/README.md)
 
 ## MVP story
 

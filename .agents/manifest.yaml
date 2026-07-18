@@ -1,0 +1,125 @@
+version: 1
+project: athena
+kind: development_subagent_roster
+
+coordination:
+  coordinator: root
+  total_concurrency_slots: 4
+  max_concurrent_subagents: 3
+  shared_workspace: true
+  source_instructions: AGENTS.md
+
+agents:
+  - id: architecture_expert
+    definition: .agents/architecture_expert.md
+    priority: P0
+    mode: write_limited
+    owns:
+      - docs/adr/
+      - docs/architecture.md
+      - docs/api-endpoints.md
+    first_wave: 1
+
+  - id: core_developer
+    definition: .agents/core_developer.md
+    priority: P0
+    mode: write
+    owns:
+      - pyproject.toml
+      - app/api/
+      - app/heartbeat/
+      - app/athena/
+      - app/memory/
+      - app/tools/
+      - tests/core/
+    first_wave: 1
+
+  - id: security_expert
+    definition: .agents/security_expert.md
+    priority: P0
+    mode: write
+    owns:
+      - app/security/
+      - app/policies/
+      - policies/
+      - fixtures/attacks/
+      - tests/security/
+    first_wave: 1
+
+  - id: reviewer
+    definition: .agents/reviewer.md
+    priority: P0
+    mode: review_only
+    owns:
+      - docs/reviews/
+    first_wave: 2
+
+  - id: inference_engineer
+    definition: .agents/inference_engineer.md
+    priority: P0
+    mode: write
+    owns:
+      - app/models/
+      - app/routing/
+      - app/council/
+      - prompts/
+      - tests/inference/
+    first_wave: 2
+
+  - id: recursive_learning_expert
+    definition: .agents/recursive_learning_expert.md
+    priority: P0
+    mode: write
+    owns:
+      - app/learning/
+      - skills/
+      - runbooks/proposals/
+      - tests/learning/
+    first_wave: 3
+
+  - id: demo_engineer
+    definition: .agents/demo_engineer.md
+    priority: P0
+    mode: write
+    owns:
+      - app/ui/
+      - fixtures/incidents/
+      - fixtures/telemetry/
+      - fixtures/kubernetes/
+      - fixtures/runbooks/
+      - scripts/
+      - tests/demo/
+    first_wave: 3
+
+waves:
+  - id: 1
+    name: foundation
+    agents:
+      - architecture_expert
+      - core_developer
+      - security_expert
+    exit_gate: Architecture decisions are recorded, the local scaffold runs, and security interfaces plus denial tests exist.
+
+  - id: 2
+    name: investigation_engine
+    agents:
+      - core_developer
+      - inference_engineer
+      - reviewer
+    exit_gate: One fixture heartbeat completes the two-round investigation through mockable model adapters and passes review.
+
+  - id: 3
+    name: recursive_demo
+    agents:
+      - recursive_learning_expert
+      - demo_engineer
+      - security_expert
+    exit_gate: Learning, replay, incident comparison, quarantine, and capability denials work in one resettable flow.
+
+  - id: 4
+    name: stabilization
+    agents:
+      - reviewer
+      - demo_engineer
+    dynamic_slot: one_targeted_implementation_agent
+    exit_gate: All P0 acceptance checks pass repeatedly from a clean reset.
