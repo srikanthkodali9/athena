@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Athena — SRE Intelligence Demo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">A</span>
+      <div>
+        <h1>Athena</h1>
+        <p class="tagline">Heartbeat-driven SRE intelligence · judge dashboard</p>
+      </div>
+    </div>
+    <div class="controls">
+      <span id="mode-badge" class="badge badge-mock" title="Provider mode">mode: …</span>
+      <span id="conn-badge" class="badge">API: …</span>
+      <button id="run-btn">Run demo</button>
+      <button id="refresh-btn" class="secondary">Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <p id="empty-hint" class="hint">
+      No cycles yet. Press <strong>Run demo</strong> — the heartbeat detects the
+      incident autonomously (no user prompt). Every value below is read from
+      persisted cycle records and the live security ledger, never hard-coded.
+    </p>
+
+    <section class="grid">
+      <!-- 1. Autonomy / heartbeat -->
+      <article class="card" id="card-autonomy">
+        <h2>1 · Autonomous detection</h2>
+        <div class="card-body" id="autonomy-body"><span class="muted">—</span></div>
+      </article>
+
+      <!-- 2. Plan revision -->
+      <article class="card" id="card-revision">
+        <h2>2 · Plan &amp; mid-cycle revision</h2>
+        <div class="card-body" id="revision-body"><span class="muted">—</span></div>
+      </article>
+
+      <!-- 3. Evidence -->
+      <article class="card" id="card-evidence">
+        <h2>3 · Evidence</h2>
+        <div class="card-body" id="evidence-body"><span class="muted">—</span></div>
+      </article>
+
+      <!-- 4. Model routing -->
+      <article class="card" id="card-routing">
+        <h2>4 · Model routing</h2>
+        <div class="card-body" id="routing-body"><span class="muted">—</span></div>
+      </article>
+
+      <!-- 5. Learning lifecycle -->
+      <article class="card" id="card-learning">
+        <h2>5 · Learning lifecycle</h2>
+        <div class="card-body" id="learning-body"><span class="muted">—</span></div>
+      </article>
+
+      <!-- 6. Security -->
+      <article class="card" id="card-security">
+        <h2>6 · Runtime security</h2>
+        <div class="card-body" id="security-body"><span class="muted">—</span></div>
+      </article>
+
+      <!-- 7. Comparison -->
+      <article class="card wide" id="card-comparison">
+        <h2>7 · First-vs-learned (FR-14)</h2>
+        <div class="card-body" id="comparison-body"><span class="muted">—</span></div>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <span id="footer-note">Athena demo · mock-mode values are deterministic · labels reflect real provider mode</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

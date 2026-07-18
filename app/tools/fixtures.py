@@ -83,7 +83,21 @@ _FIXTURES: dict[str, dict[str, Any]] = {
                     "service": "api",
                 },
                 "data": {"before": 0.01, "value": 0.09, "unit": "ratio"},
-            }
+            },
+            {
+                # Related Redis saturation signal (7300/8000 = 0.9125 >= 0.9) so
+                # incident two reproduces the pattern incident one learned and can
+                # reuse the promoted skill (fixtures/README.md ground truth).
+                "id": "ev_metric-redis-conn-32",
+                "type": "metric",
+                "source": "prometheus",
+                "provenance": {
+                    "query": "redis_connected_clients",
+                    "window": "5m",
+                    "service": "redis",
+                },
+                "data": {"before": 300, "value": 7300, "limit": 8000, "unit": "count"},
+            },
         ],
         "deployment_diff": {
             "id": "ev_diff-api-deploy-9",

@@ -315,6 +315,17 @@ class Cycle(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
 
+    # Recursive-intelligence wiring (FR-8 / FR-14).
+    #: When a promoted skill matched this incident's telemetry, its id/version —
+    #: the investigation then legitimately runs leaner by reusing that validated
+    #: procedural knowledge instead of re-deriving it.
+    reused_skill_id: Optional[str] = None
+    reused_skill_version: Optional[str] = None
+    #: Steps skipped because a reused skill already encodes their conclusion.
+    skipped_steps: list[str] = Field(default_factory=list)
+    #: Learning outcome persisted after synthesis (skill_id/version/status/outcome).
+    learning: Optional[dict[str, Any]] = None
+
     metrics: CycleMetrics = Field(default_factory=CycleMetrics)
     error: Optional[str] = None
     recovery_actions: list[str] = Field(default_factory=list)

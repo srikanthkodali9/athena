@@ -28,6 +28,9 @@ from fastapi import Request
 from app.athena.config import InferenceMode, Settings, get_settings
 from app.athena.ports import InferencePort, MockInference, SecurityGateway
 from app.heartbeat.lifecycle import HeartbeatService
+from app.learning.retrieval import SkillRetriever
+from app.learning.service import LearningService
+from app.learning.store import LearningStore
 from app.memory.store import CycleStore
 from app.security.config import SecurityConfig
 from app.security.gateway import HiddenLayerGateway
@@ -46,9 +49,14 @@ class AppContext:
     registry: ToolRegistry
     heartbeat: HeartbeatService
     openshell: Optional[OpenShellEngine] = None
+    learning: Optional[LearningService] = None
+    learning_store: Optional[LearningStore] = None
+    retriever: Optional[SkillRetriever] = None
 
     def close(self) -> None:
         self.store.close()
+        if self.learning_store is not None:
+            self.learning_store.close()
 
 
 def build_context(settings: Settings | None = None) -> AppContext:
@@ -65,6 +73,14 @@ def build_context(settings: Settings | None = None) -> AppContext:
     security = HiddenLayerGateway.from_config(_resolve_security_config(settings))
     openshell = _build_openshell(settings, security)
 
+    # Recursive learning over the SAME SQLite file (its own tables). The learning
+    # service's SKILL_WRITE inspection runs through the SAME security gateway.
+    learning_store = LearningStore(settings.state_db_path)
+    learning = LearningService(
+        store=learning_store, security=security, skills_dir="skills"
+    )
+    retriever = SkillRetriever(learning_store)
+
     registry = build_default_registry()
     heartbeat = HeartbeatService(
         store=store,
@@ -72,6 +88,8 @@ def build_context(settings: Settings | None = None) -> AppContext:
         security=security,
         registry=registry,
         settings=settings,
+        learning=learning,
+        retriever=retriever,
     )
     return AppContext(
         settings=settings,
@@ -81,6 +99,9 @@ def build_context(settings: Settings | None = None) -> AppContext:
         registry=registry,
         heartbeat=heartbeat,
         openshell=openshell,
+        learning=learning,
+        learning_store=learning_store,
+        retriever=retriever,
     )
 
 

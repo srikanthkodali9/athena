@@ -53,6 +53,8 @@ from app.council.specialists import (
     SpecialistOutcome,
 )
 from app.heartbeat.change_detection import detect_changes
+from app.learning.retrieval import SkillRetriever
+from app.learning.service import LearningService
 from app.memory.store import CycleStore
 from app.tools import fixtures as tool_fixtures
 from app.tools.registry import ToolRegistry
@@ -139,6 +141,69 @@ def _specialist_step_result(outcome: SpecialistOutcome) -> dict:
     }
 
 
+def _redis_saturation(evidence) -> Optional[str]:
+    """Return the saturating redis metric's evidence id, else None (deterministic).
+
+    A redis metric whose ``value >= 0.9 * limit`` means the 5xx errors trace to
+    Redis connection rejection — the signal that drives the mid-cycle REVISE_PLAN
+    (fixtures/README.md).
+    """
+    for ev in evidence:
+        data = getattr(ev, "data", {}) or {}
+        limit = data.get("limit")
+        value = data.get("value")
+        prov = getattr(ev, "provenance", {}) or {}
+        looks_redis = "redis" in (
+            str(prov.get("query", "")) + str(getattr(ev, "source", ""))
+        ).lower()
+        if (
+            looks_redis
+            and isinstance(limit, (int, float))
+            and isinstance(value, (int, float))
+            and limit > 0
+            and value >= 0.9 * limit
+        ):
+            return ev.id
+    return None
+
+
+def _retrieval_signals(fixture: str) -> tuple[dict[str, float], set[str]]:
+    """Translate incident telemetry into the skill-retrieval contract (FR-14).
+
+    Reads the real fixture metrics (facts) and derives:
+      redis_saturation_ratio = connected_clients / limit
+      api_5xx_rate           = current 5xx ratio
+      api_5xx_rate_baseline  = baseline 5xx ratio
+    Preconditions are asserted only when the backing telemetry is present.
+    Never fabricates a signal — an incident with no redis metric yields no
+    ``redis_saturation_ratio`` and therefore cannot match the redis skill.
+    """
+    try:
+        data = tool_fixtures.get_fixture(fixture)
+    except KeyError:
+        return {}, set()
+
+    signals: dict[str, float] = {}
+    preconditions: set[str] = set()
+    for metric in data.get("metrics", []):
+        prov = metric.get("provenance", {}) or {}
+        mdata = metric.get("data", {}) or {}
+        blob = (str(prov.get("query", "")) + str(metric.get("source", ""))).lower()
+        limit = mdata.get("limit")
+        value = mdata.get("value")
+        if "redis" in blob and isinstance(limit, (int, float)) and limit and isinstance(value, (int, float)):
+            signals["redis_saturation_ratio"] = value / limit
+            preconditions.update(
+                {"redis_metrics_available", "dependency_graph_contains_api_to_redis"}
+            )
+        if prov.get("service") == "api" or "http_requests_total" in str(prov.get("query", "")):
+            if isinstance(value, (int, float)):
+                signals["api_5xx_rate"] = value
+            if isinstance(mdata.get("before"), (int, float)):
+                signals["api_5xx_rate_baseline"] = mdata["before"]
+    return signals, preconditions
+
+
 # ---------------------------------------------------------------------------
 # Step engine
 # ---------------------------------------------------------------------------
@@ -180,12 +245,19 @@ class HeartbeatService:
         security: SecurityGateway,
         registry: ToolRegistry,
         settings: Settings,
+        learning: "LearningService | None" = None,
+        retriever: "SkillRetriever | None" = None,
     ) -> None:
         self._store = store
         self._inference = inference
         self._security = security
         self._registry = registry
         self._settings = settings
+        # Recursive intelligence (optional so isolated core tests can omit it).
+        # ``learning`` turns a verified cycle into a promoted skill (FR-8);
+        # ``retriever`` lets a later incident reuse a promoted skill (FR-14).
+        self._learning = learning
+        self._retriever = retriever
 
     # -- Command intake ----------------------------------------------------
 
@@ -301,6 +373,7 @@ class HeartbeatService:
                     break
 
             self._finalize(cycle)
+            self._maybe_learn(cycle, ctx)
         except Exception as exc:  # noqa: BLE001 - record and fail closed
             cycle.state = CycleState.FAILED
             cycle.error = f"{type(exc).__name__}: {exc}"
@@ -309,6 +382,38 @@ class HeartbeatService:
             raise
 
         return cycle
+
+    def _maybe_learn(self, cycle: Cycle, ctx: _Context) -> None:
+        """Turn a verified investigation into procedural knowledge (FR-8).
+
+        Runs only after a real investigation completes (never the no-change WAIT
+        path), exactly once per cycle, and routes the SKILL_WRITE inspection
+        through the same security gateway the cycle uses. For the P0 demo the
+        fixture incidents are ground-truth verified.
+        """
+        if self._learning is None:
+            return
+        if cycle.state is not CycleState.COMPLETED:
+            return
+        if cycle.decision is Decision.WAIT or cycle.learning is not None:
+            return
+        try:
+            result = self._learning.learn_from_cycle(
+                cycle, verified=True, evidence=ctx.evidence
+            )
+        except Exception as exc:  # noqa: BLE001 - learning must never fail the cycle
+            cycle.recovery_actions.append(f"learning skipped: {type(exc).__name__}")
+            self._store.save_cycle(cycle)
+            return
+        cycle.learning = {
+            "outcome": result.outcome.value,
+            "skill_id": result.skill_id,
+            "skill_version": result.skill_version,
+            "skill_status": result.skill_status.value if result.skill_status else None,
+            "known_false_lead_count": result.known_false_lead_count,
+            "episode_id": result.episode_id,
+        }
+        self._store.save_cycle(cycle)
 
     async def recover(self) -> Optional[Cycle]:
         """Reload and resume an incomplete cycle after restart (FR7-05)."""
@@ -423,7 +528,35 @@ class HeartbeatService:
 
         ctx.plan = plan
         cycle.plan = plan
-        return {"plan_id": plan.plan_id, "planner_tokens": chat.total_tokens}
+
+        # Skill reuse (FR-14): if a PROMOTED skill matches this incident's
+        # telemetry, record it. The skill already encodes the hypothesis +
+        # known_false_leads, so the investigation may legitimately run leaner
+        # (skip mid-cycle re-derivation and the Round-2 specialist) — principled
+        # reuse of validated procedural knowledge, not shortcutting.
+        reuse = self._match_promoted_skill(cycle.fixture)
+        if reuse is not None:
+            cycle.reused_skill_id, cycle.reused_skill_version = reuse
+
+        return {
+            "plan_id": plan.plan_id,
+            "planner_tokens": chat.total_tokens,
+            "reused_skill_id": cycle.reused_skill_id,
+        }
+
+    def _match_promoted_skill(self, fixture: Optional[str]) -> Optional[tuple[str, str]]:
+        """Return (skill_id, version) of a promoted skill matching the incident
+        telemetry, or None. Reads real fixture metrics — never fabricated."""
+        if self._retriever is None or not fixture:
+            return None
+        signals, preconditions = _retrieval_signals(fixture)
+        if not signals:
+            return None
+        match = self._retriever.match(signals, preconditions_met=preconditions)
+        if match is None:
+            return None
+        skill, _citation = match
+        return skill.skill_id, skill.version
 
     async def _step_round1_tools(self, ctx: _Context) -> dict:
         cycle = ctx.cycle
@@ -464,6 +597,15 @@ class HeartbeatService:
         return _specialist_step_result(outcome)
 
     async def _step_round2_platform(self, ctx: _Context) -> dict:
+        cycle = ctx.cycle
+        # Skill reuse: a promoted skill already answers the Platform question, so
+        # skip re-running the specialist (fewer specialist + model calls, FR-14).
+        if cycle.reused_skill_id:
+            cycle.skipped_steps.append("ROUND2_PLATFORM")
+            return {
+                "skipped": True,
+                "reason": f"reused skill {cycle.reused_skill_id} encodes the platform conclusion",
+            }
         # Round 2: real Platform specialist with the confirmed/revised question.
         question = (
             ctx.plan.platform_question
@@ -477,18 +619,47 @@ class HeartbeatService:
 
     async def _step_mid_cycle(self, ctx: _Context) -> dict:
         cycle = ctx.cycle
+        # Skill reuse: the skill already encodes the hypothesis + known_false_leads,
+        # so Athena does NOT re-derive the plan mid-cycle (no model call, FR-14).
+        if cycle.reused_skill_id:
+            cycle.mid_cycle_decision = MidCycleDecision.CONTINUE_PLAN
+            cycle.skipped_steps.append("MID_CYCLE_EVAL")
+            cycle.plan = ctx.plan
+            return {
+                "decision": MidCycleDecision.CONTINUE_PLAN.value,
+                "skipped": True,
+                "reason": f"reused skill {cycle.reused_skill_id}",
+            }
+
         # Bounded mid-cycle evaluation (FR3-08): CONTINUE_PLAN or REVISE_PLAN.
         chat = await self._infer(
             "midcycle", "Does Round 1 evidence support the hypothesis?", cycle
         )
-        # Deterministic policy for Wave 1: security-sensitive change forces a
-        # revision toward a security-focused Platform question.
-        revise = cycle.change_class is not None and cycle.change_class.value == "security_sensitive"
-        if revise and ctx.plan is not None and not ctx.plan.revision_used:
-            ctx.plan.revise_platform_question(
-                "Which infrastructure change created the exposure?",
-                reason="round1 evidence indicates a security-sensitive change",
-            )
+        # Evidence-driven REVISE_PLAN (fixtures/README.md): revise when Round-1
+        # evidence shows the 5xx errors trace specifically to Redis connection
+        # rejection (a redis metric at >= 90% of its limit), OR on a
+        # security-sensitive change. One-revision bound preserved.
+        security_revise = (
+            cycle.change_class is not None
+            and cycle.change_class.value == "security_sensitive"
+        )
+        redis_ev = _redis_saturation(ctx.evidence)
+        if ctx.plan is not None and not ctx.plan.revision_used and (security_revise or redis_ev):
+            if redis_ev:
+                ctx.plan.revise_platform_question(
+                    "Which deployment change altered the Redis connection pool "
+                    "configuration (REDIS_POOL_MAX)?",
+                    reason=(
+                        f"round1 evidence {redis_ev} shows redis_connected_clients "
+                        "at/near its limit — errors trace to Redis connection "
+                        "rejection, not general service infrastructure"
+                    ),
+                )
+            else:
+                ctx.plan.revise_platform_question(
+                    "Which infrastructure change created the exposure?",
+                    reason="round1 evidence indicates a security-sensitive change",
+                )
             cycle.mid_cycle_decision = MidCycleDecision.REVISE_PLAN
         else:
             cycle.mid_cycle_decision = MidCycleDecision.CONTINUE_PLAN

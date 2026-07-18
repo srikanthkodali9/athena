@@ -1,0 +1,23 @@
+{
+  "fixture": "redis-incident-001",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "note": "Read-only Kubernetes deployment view backing incident one. No mutation verbs; facts only.",
+  "deployment": {
+    "object": "deployment/api",
+    "namespace": "prod",
+    "from_revision": "api-1180",
+    "to_revision": "api-1181",
+    "committed_at": "2026-07-18T09:41:00Z",
+    "replicas": 20,
+    "image_changed": false,
+    "changed_env": [
+      {"key": "REDIS_POOL_MAX", "from": "50", "to": "500"}
+    ],
+    "derived": {
+      "max_client_connections_estimate": "replicas(20) * REDIS_POOL_MAX(500) = 10000",
+      "redis_maxclients": 10000,
+      "note": "Estimate reaches the Redis maxclients ceiling — the deterministic basis for the saturation ground truth. Interpretation happens in the reasoning plane, not here."
+    }
+  }
+}

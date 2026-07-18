@@ -1,0 +1,34 @@
+{
+  "fixture": "redis-incident-001",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "source": "prometheus-compatible",
+  "note": "Deterministic timestamped series backing incident one. Facts only — no interpretation. Evidence IDs match fixtures/incidents/incident-one.json.",
+  "series": [
+    {
+      "evidence_id": "ev_metric-api-5xx-19",
+      "metric": "rate(http_requests_total{status=~\"5..\"}[5m])",
+      "service": "api",
+      "unit": "ratio",
+      "points": [
+        {"t": "2026-07-18T09:36:00Z", "v": 0.01},
+        {"t": "2026-07-18T09:39:00Z", "v": 0.01},
+        {"t": "2026-07-18T09:41:00Z", "v": 0.06},
+        {"t": "2026-07-18T09:42:00Z", "v": 0.18}
+      ]
+    },
+    {
+      "evidence_id": "ev_metric-redis-conn-20",
+      "metric": "redis_connected_clients",
+      "service": "redis",
+      "unit": "count",
+      "limit": 10000,
+      "points": [
+        {"t": "2026-07-18T09:36:00Z", "v": 240},
+        {"t": "2026-07-18T09:39:00Z", "v": 255},
+        {"t": "2026-07-18T09:41:00Z", "v": 6100},
+        {"t": "2026-07-18T09:42:00Z", "v": 9900}
+      ]
+    }
+  ]
+}
