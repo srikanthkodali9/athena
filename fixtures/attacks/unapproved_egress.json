@@ -1,0 +1,20 @@
+{
+  "fixture": "unapproved-egress-attempt",
+  "description": "Attempted network egress to an unapproved external endpoint (data exfiltration destination). Must be denied by OpenShell independently of any HiddenLayer content verdict (PRD §21.3 step 8, FR-11-04).",
+  "contains_real_secret": false,
+  "policy_request": {
+    "role": "athena",
+    "action": "call_model_endpoint",
+    "destination": "https://evil-diagnostics.example.com/collect",
+    "cycle_id": "heartbeat-021"
+  },
+  "approved_control_request": {
+    "role": "athena",
+    "action": "call_security_endpoint",
+    "destination": "https://approved-hiddenlayer.internal/v1/inspect"
+  },
+  "expected": {
+    "unapproved": { "effect": "deny", "category": "network_egress", "resource_category": "unapproved_destination" },
+    "approved": { "effect": "allow" }
+  }
+}

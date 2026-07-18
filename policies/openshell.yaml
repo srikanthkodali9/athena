@@ -1,0 +1,129 @@
+# NVIDIA OpenShell capability policy for Athena (PRD §6.5 / §14.5 / §14.6).
+#
+# OpenShell answers ONE question: "can this action cross the protected
+# boundary?" It never sees HiddenLayer trust scores or content verdicts — the
+# two enforcement layers are independent by design (PRD §6.6).
+#
+# Evaluation order (deny always wins, independent of role or trust):
+#   1. protected_paths        -> hard DENY (credential / home / secrets)
+#   2. network egress         -> allow_destinations / approval_gated / else DENY
+#   3. deny-category action   -> hard DENY
+#   4. role least privilege   -> allow | require_approval | (ungranted) DENY
+# The strictest applicable effect is returned.
+
+version: "1.0.0"
+description: >-
+  Least-privilege sandbox for Athena's heartbeat-driven SRE workflow. Grants
+  useful diagnostic and agent-owned-persistence capabilities while denying
+  credential access, unapproved egress, production mutation, destructive
+  commands, and any change to the security policy itself.
+
+# Agent-owned workspace. Reads/writes resolve relative to this root; anything
+# resolving outside it (home dirs, system paths) is treated as protected.
+workspace_root: "."
+
+# Always-denied path patterns (fnmatch, case-insensitive). Reading any of these
+# is denied regardless of the requesting role or the labelled action.
+protected_paths:
+  - "**/.aws/credentials"
+  - "**/.aws/config"
+  - "**/.ssh/id_*"
+  - "**/.ssh/*"
+  - "**/*.pem"
+  - "**/*.key"
+  - "**/*_rsa"
+  - "/etc/shadow"
+  - "/etc/passwd"
+  - "**/.env"
+  - "**/.env.*"
+  - "**/secrets/**"
+  - "**/credentials/**"
+  - "~/**"          # arbitrary home-directory reads
+  - "/root/**"
+  - "/home/*/**"
+
+# Network egress allowlist. Destinations are named/approved by the orchestrator;
+# specialists never choose arbitrary endpoints. Anything not listed is denied
+# and audited (unapproved egress / data export).
+network:
+  allow_destinations:
+    - "approved-strategic-vllm.internal"
+    - "approved-council-vllm.internal"
+    - "approved-hiddenlayer.internal"
+    - "approved-prometheus.internal"
+    - "approved-kubernetes.internal"
+    - "localhost"
+    - "127.0.0.1"
+  approval_gated_destinations:
+    - "hooks.slack.com"          # notify_external_channel
+    - "api.github.com"           # open_draft_pr / create_git_patch submission
+
+# Capability categories (PRD §14.5).
+categories:
+  allow:
+    - read_repository
+    - read_telemetry
+    - read_runbook
+    - read_kubernetes
+    - read_memory_validated
+    - write_memory
+    - write_runbook_proposal
+    - call_model_endpoint
+    - call_security_endpoint
+    - run_diagnostic
+  approval_gated:
+    - create_git_patch
+    - open_draft_pr
+    - notify_external_channel
+    - run_remediation_simulation
+    - reversible_nonprod_action
+  deny:
+    - read_credential_path
+    - read_home_directory
+    - network_egress_unapproved
+    - push_protected_branch
+    - apply_production_change
+    - delete_outside_workspace
+    - execute_destructive
+    - modify_security_policy
+    - disable_hiddenlayer
+    - export_unapproved_endpoint
+
+# Per-role least privilege (PRD §14.6). A role may only invoke capabilities
+# listed under its own allow/approval_gated sets; anything else is denied.
+roles:
+  athena:
+    allow:
+      - read_repository
+      - read_telemetry
+      - read_runbook
+      - read_kubernetes
+      - write_memory
+      - write_runbook_proposal
+      - call_model_endpoint
+      - call_security_endpoint
+      - run_diagnostic
+    approval_gated:
+      - create_git_patch
+      - open_draft_pr
+      - notify_external_channel
+      - run_remediation_simulation
+      - reversible_nonprod_action
+  observability:
+    allow:
+      - read_telemetry
+      - run_diagnostic
+    approval_gated: []
+  platform:
+    allow:
+      - read_kubernetes
+      - read_repository
+    approval_gated: []
+  historian:
+    allow:
+      - read_memory_validated
+    approval_gated: []
+  critic:
+    # No execution capability (PRD §14.6): evidence and claims only.
+    allow: []
+    approval_gated: []
