@@ -296,12 +296,12 @@ Removing Nemotron should remove Athena's ability to coordinate, synthesize, and 
 
 Preferred:
 
-- A capable Nemotron model suitable for agentic reasoning and structured output, with **Nemotron 3 Nano 30B-A3B** as the target where supported by the available environment.
+- **Nemotron-Super 49B** (`nvidia/llama-3.1-nemotron-super-49b-v1`) as the main strategic reasoning model. Provides the right balance of reasoning capability and inference latency for live demo use. Estimated planning latency: 5–8 seconds. Estimated full investigation: 90–120 seconds.
 
 Fallback:
 
 - Another event-approved Nemotron model with reliable tool calling and structured output.
-- A smaller Nemotron model for full-stack continuity if GPU capacity is constrained.
+- Nemotron-Nano for full-stack continuity if GPU capacity is constrained; validate reasoning quality on complex synthesis tasks before committing.
 
 The main-agent model choice must be validated on the actual hardware and vLLM version before the final demo.
 
@@ -520,17 +520,33 @@ WAIT / INVESTIGATE / ESCALATE / CONTINUE / RETRY / LEARN / REQUEST_APPROVAL
 Create bounded investigation plan                       |
    |                                                     |
    v                                                     |
-Route tasks by complexity and risk                      |
+Round 1: Observability specialist and deterministic     |
+tools run concurrently                                  |
    |                                                     |
-   +--> Deterministic tools                             |
-   +--> Small Council specialists through vLLM          |
-   +--> Athena main model for strategic reasoning       |
+   +--> Deterministic tools (metrics, logs, diffs)      |
+   +--> Observability specialist via vLLM (Nemotron-Nano)|
    |                                                     |
    v                                                     |
-HiddenLayer inspects prompts, responses, tools, results |
+HiddenLayer inspects Round 1 tool results and           |
+Observability response                                  |
+   |                                                     |
+   v                                                     |
+Mid-cycle evaluation (Nemotron-Super):                  |
+Does Round 1 evidence support the initial hypothesis?   |
+CONTINUE_PLAN / REVISE_PLAN with updated scope          |
+   |                                                     |
+   v                                                     |
+Round 2: Platform specialist via vLLM (Nemotron-Nano)   |
+with confirmed or revised question                      |
+   |                                                     |
+   v                                                     |
+HiddenLayer inspects Round 2 Platform response          |
    |                                                     |
    v                                                     |
 Athena correlates evidence and resolves contradictions  |
+   |                                                     |
+   v                                                     |
+Nemotron-Super self-critique (adversarial prompt)       |
    |                                                     |
    v                                                     |
 Produce one accountable SRE decision                    |
@@ -573,6 +589,8 @@ Athena is the only persistent autonomous decision-maker.
 - Build bounded investigation plans
 - Choose specialists and tools
 - Route tasks to appropriate model tiers
+- Evaluate first-round evidence mid-cycle before committing to second-round specialist scope
+- Revise remaining specialist questions within the current cycle when first-round findings change the hypothesis
 - Control tool, token, and time budgets
 - Combine evidence
 - Resolve contradictions
@@ -603,6 +621,16 @@ Athena may not:
 Council specialists are bounded workers. They do not own the heartbeat, maintain persistent goals, or make final decisions.
 
 The initial Council should be intentionally small:
+
+**Hackathon implementation priority:**
+
+| Specialist | Hackathon Priority |
+|---|---|
+| Observability | P0 |
+| Platform | P0 |
+| Historian | P2 |
+| Security | P2 |
+| Critic | P2 — adversarial Nemotron-Super prompt in MVP |
 
 1. Observability Specialist
 2. Platform Specialist
@@ -660,6 +688,8 @@ Smaller 8B to 9B specialist model.
 
 ## 9.5 Security Specialist
 
+> **Hackathon priority: P2.** Fully designed and ready for Part Two. For the P0 MVP, Nemotron-Super interprets HiddenLayer findings directly. The detection and enforcement layers (HiddenLayer and OpenShell) are P0 — only the specialist interpretation layer is deferred.
+
 ### Recommended Model Tier
 
 Smaller 8B to 9B specialist model.
@@ -675,6 +705,8 @@ Smaller 8B to 9B specialist model.
 HiddenLayer performs runtime detection. The Security Specialist explains operational impact. OpenShell enforces capability boundaries.
 
 ## 9.6 Incident Historian
+
+> **Hackathon priority: P2** as a specialist model. For the P0 MVP, skill and episode retrieval is handled by deterministic tools (`search_skills`, `search_episodes`) against the durable state store. Nemotron-Super performs the similarity comparison during synthesis. The full embedding retrieval, reranking, and bounded comparison pipeline is implemented in Part Two.
 
 ### Recommended Architecture
 
@@ -694,10 +726,12 @@ The historian should not place the entire memory archive into a model prompt.
 
 ## 9.7 Critic and Verifier
 
+> **Hackathon priority: P2** as a standalone specialist agent. For the P0 MVP, the Critic role is fulfilled by a second Nemotron-Super call with a separate adversarial system prompt, as noted in the recommended model tier below. This is intentional per the design — the standalone Critic agent is the Part Two upgrade.
+
 ### Recommended Model Tier
 
-- Athena's main model with a separate adversarial prompt for the MVP
-- Optional smaller independent critic for low-risk checks
+- Athena's main model (Nemotron-Super) with a separate adversarial prompt for the MVP
+- Standalone smaller independent critic agent for Part Two
 
 ### Purpose
 
@@ -889,8 +923,25 @@ Example:
 ```json
 {
   "incident_id": "athena-inc-2026-07-18-004",
-  "max_specialists": 3,
-  "max_tool_calls": 10,
+  "max_specialists": 2,
+  "first_round": {
+    "specialists": ["observability"],
+    "max_tool_calls": 5,
+    "max_tokens": 4000,
+    "deadline_seconds": 30
+  },
+  "mid_cycle_evaluation": {
+    "model": "nemotron-super",
+    "max_tokens": 1500,
+    "deadline_seconds": 10,
+    "outputs": ["CONTINUE_PLAN", "REVISE_PLAN"]
+  },
+  "second_round": {
+    "specialists": ["platform"],
+    "max_tool_calls": 5,
+    "max_tokens": 4000,
+    "deadline_seconds": 30
+  },
   "max_total_tokens": 14000,
   "deadline_seconds": 75,
   "security_mode": "fail_closed_for_tools_and_writes",
@@ -957,6 +1008,7 @@ Every cycle must store:
 - Skill and runbook changes
 - Performance metrics
 - Errors and recovery actions
+- Plan revisions: original specialist scope, mid-cycle evaluation decision, revision trigger reason, and updated Platform question
 
 ## 12.4 Recovery
 
@@ -1011,6 +1063,26 @@ Reuse on Later Heartbeat
       v
 Measure Improvement
 ```
+
+## 13.1a Two-Level Recursive Investigation
+
+Athena operates two distinct recursive loops that are complementary, not alternatives.
+
+**Within-cycle recursion — mid-cycle evaluation**
+
+After the first-round Observability specialist completes, Nemotron-Super evaluates whether the initial hypothesis still holds. If the evidence redirects the investigation — for example, showing that errors originate in a downstream dependency rather than the initially suspected service — Athena revises the Platform specialist's question before the second round runs. The revised question is then persisted alongside the original for the learning loop.
+
+This produces a more targeted investigation within the same heartbeat cycle. Platform does not waste its tool budget on the wrong component. The revision is visible in the dashboard as a logged CONTINUE_PLAN or REVISE_PLAN decision with the specific change recorded.
+
+**Cross-cycle recursion — CONTINUE mechanism**
+
+When a single heartbeat cycle cannot reach sufficient confidence — because required evidence has a longer polling interval, a human review is pending, or the situation is evolving — the CONTINUE decision stores the partial investigation state and the next heartbeat resumes from a safe checkpoint. Each cycle's findings feed the next cycle's hypothesis, producing recursive refinement across heartbeat intervals.
+
+Within-cycle recursion optimises fast-moving investigations that can be closed in one heartbeat. Cross-cycle recursion handles investigations that require minutes or longer between evidence rounds. Both mechanisms share the same state persistence, HiddenLayer inspection requirements, and investigation budget enforcement.
+
+**Negative knowledge capture**
+
+The learning loop captures both successful hypothesis chains and rejected ones. Every REVISE_PLAN decision during mid-cycle evaluation records a dead end: the original hypothesis that was abandoned, the Observability evidence that invalidated it, and the reason for revision. These become `known_false_leads` in the resulting skill. On later incidents, Athena uses this negative knowledge to skip dead ends it has already explored, not just to follow the winning path faster. A skill that encodes what not to check is more useful than one that only encodes what to check.
 
 ## 13.2 Memory Layers
 
@@ -1068,6 +1140,16 @@ created_from_incidents:
 hiddenlayer_status: passed
 validation_passes: 3
 confidence: 0.91
+known_false_leads:
+  - approach: "Investigate source service internals first"
+    failure_reason: "Errors originate at the downstream Redis dependency, not within the calling service. REVISE_PLAN triggered after Observability round."
+    evidence_from_incidents:
+      - athena-inc-001
+  - approach: "Assume Redis memory pressure as root cause"
+    failure_reason: "Redis memory was healthy during all observed connection saturation events. Pool exhaustion is the mechanism, not OOM."
+    evidence_from_incidents:
+      - athena-inc-001
+      - athena-inc-006
 ---
 
 # Diagnose Redis Connection Saturation
@@ -1265,7 +1347,7 @@ Athena shall avoid full investigation when monitored inputs are unchanged.
 
 ## FR-3: Investigation Planning
 
-Athena shall produce a bounded plan with specialists, tools, budget, evidence, and stop conditions.
+Athena shall produce a bounded plan with specialists, tools, budget, evidence, and stop conditions. Within a single cycle, Athena shall run a first-round Observability specialist, evaluate mid-cycle whether the hypothesis requires revision, and run the Platform specialist in a second round with a confirmed or revised question.
 
 ## FR-4: Tiered Model Routing
 
@@ -1273,7 +1355,7 @@ Athena shall route bounded tasks to smaller models and strategic decisions to th
 
 ## FR-5: Specialist Coordination
 
-At least three Council domains shall return structured, evidence-backed outputs.
+At least three Council domains shall return structured, evidence-backed outputs. For the P0 MVP, Observability and Platform run as specialist models and the Critic domain is fulfilled by a Nemotron-Super adversarial prompt. Historian, Security, and Critic as standalone specialists are P2.
 
 ## FR-6: Evidence-Backed Findings
 
@@ -1592,18 +1674,22 @@ Heartbeat detects:
 Athena:
 
 1. Inspects incoming data through HiddenLayer.
-2. Creates a bounded plan.
-3. Calls Observability, Platform, and Historian specialists through vLLM.
-4. Uses deterministic metrics and deployment tools.
-5. Correlates evidence using the main Nemotron model.
-6. Identifies Redis connection saturation.
-7. Produces a recommendation requiring approval.
-8. Stores the verified episode.
-9. Drafts a candidate Redis diagnostic skill.
-10. Drafts a runbook proposal.
-11. Scans both through HiddenLayer.
-12. Replays and validates the skill.
-13. Promotes it when validation passes.
+2. Creates a bounded investigation plan with first-round and second-round scope.
+3. Runs Observability specialist (Nemotron-Nano) and deterministic metrics and deployment tools concurrently as Round 1.
+4. HiddenLayer inspects Round 1 results.
+5. Mid-cycle evaluation: Nemotron-Super determines that errors trace specifically to Redis connection rejection — revises the Platform question from general service infrastructure to Redis connection pool configuration (REVISE_PLAN).
+6. Runs Platform specialist (Nemotron-Nano) with the revised question as Round 2.
+7. HiddenLayer inspects Round 2 results.
+8. Correlates Observability and Platform evidence using Nemotron-Super.
+9. Nemotron-Super adversarial self-critique challenges the root cause conclusion.
+10. Identifies Redis connection saturation from a deployment-induced pool-size change.
+11. Produces a recommendation requiring approval.
+12. Stores the verified episode including the mid-cycle revision path.
+13. Drafts a candidate Redis diagnostic skill encoding the winning hypothesis chain.
+14. Drafts a runbook proposal.
+15. Scans both through HiddenLayer.
+16. Replays and validates the skill.
+17. Promotes it when validation passes.
 
 ## 21.2 Incident Two: Related Pattern
 
@@ -1701,12 +1787,14 @@ External exfiltration blocked
 
 - Athena heartbeat and state persistence
 - One complete incident flow
-- Main Nemotron reasoning path
-- At least two small specialists
+- Main Nemotron-Super reasoning path
+- Observability and Platform specialists with mid-cycle evaluation and plan revision
 - Deterministic metrics and deployment tools
+- Deterministic skill and episode retrieval (`search_skills`, `search_episodes`)
+- Nemotron-Super adversarial self-critique prompt (Critic role for MVP)
 - vLLM-served real inference
 - Episodic memory
-- Candidate skill generation
+- Candidate skill generation encoding the winning hypothesis chain
 - Replay validation
 - Measured first-versus-learned comparison
 - HiddenLayer on at least six critical boundaries
@@ -1716,17 +1804,17 @@ External exfiltration blocked
 
 ## P1: Strong Competitive Enhancements
 
-- Third specialist
-- Incident historian retrieval and reranking
 - Runbook patch proposal
-- Critic pass
 - Model-tier cost comparison
 - HiddenLayer trust-score integration
 - Approval workflow
 - NemoClaw packaging
 
-## P2: Post-Core Enhancements
+## P2: Part Two — Council Specialists and Advanced Features
 
+- Historian specialist with embedding retrieval, metadata filtering, and reranking (section 9.6)
+- Security specialist for HiddenLayer finding interpretation (section 9.5)
+- Critic as a standalone specialist agent (section 9.7)
 - Live Kubernetes integration
 - Draft pull request creation
 - Team notifications
@@ -1734,6 +1822,8 @@ External exfiltration blocked
 - Larger replay suite
 - Optional hosted escalation model
 - Broader graph analysis
+
+Historian, Security, and Critic are fully designed and ready. Implementation is deferred to Part Two.
 
 Do not attempt P2 until the complete P0 story is stable.
 

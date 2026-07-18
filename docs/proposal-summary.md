@@ -23,13 +23,15 @@ The product is not intended to replace monitoring platforms or automatically mut
 4. Inspect untrusted inputs through HiddenLayer.
 5. Choose `WAIT`, `INVESTIGATE`, `ESCALATE`, `CONTINUE`, `RETRY`, `LEARN`, `REQUEST_APPROVAL`, or `CONTAIN`.
 6. Build a bounded investigation plan with tools, specialists, budgets, evidence requirements, and stop conditions.
-7. Run deterministic evidence tools and narrow Council tasks.
-8. Inspect model and tool interactions at each trust boundary.
-9. Use Nemotron to correlate evidence, resolve contradictions, and produce one accountable decision.
-10. Store the verified episode and its outcome.
-11. Draft a candidate skill and a reviewable runbook proposal.
-12. Scan, replay, and validate learned material before promotion.
-13. Reuse validated knowledge on later heartbeats and measure improvement.
+7. Run deterministic evidence tools and the Observability specialist concurrently as the first round of investigation.
+8. Evaluate mid-cycle whether Observability findings change the Platform specialist's scope; revise the Platform question if the hypothesis has shifted (REVISE_PLAN) or confirm it is unchanged (CONTINUE_PLAN).
+9. Run the Platform specialist in the second round with the confirmed or revised question.
+10. Inspect model and tool interactions at each trust boundary.
+11. Use Nemotron-Super to correlate evidence, resolve contradictions, run an adversarial self-critique, and produce one accountable decision.
+12. Store the verified episode and its outcome, including the mid-cycle revision path.
+13. Draft a candidate skill encoding the winning hypothesis chain and a reviewable runbook proposal.
+14. Scan, replay, and validate learned material before promotion.
+15. Reuse validated knowledge on later heartbeats and measure improvement.
 
 ## Architecture responsibilities
 
@@ -39,13 +41,13 @@ Athena owns heartbeat state, planning, routing, budgets, synthesis, confidence, 
 
 ### Council
 
-Council members are bounded workers with no persistent goals or final decision authority:
+Council members are bounded workers with no persistent goals or final decision authority. Observability and Platform are implemented as Nemotron-Nano specialist models for the hackathon. Historian, Security, and Critic are deferred to Part Two; their functions are absorbed by Nemotron-Super for the P0 MVP.
 
-- **Observability:** timelines, baselines, symptoms, and evidence-supported hypotheses.
-- **Platform:** Kubernetes and deployment findings, configuration evidence, and safe verification actions.
-- **Security:** operational interpretation of HiddenLayer and OpenShell events.
-- **Historian:** retrieval and comparison of validated episodes and promoted skills.
-- **Critic:** contradiction discovery, unsupported-claim detection, and bounded follow-up requests.
+- **Observability [P0]:** timelines, baselines, symptoms, and evidence-supported hypotheses. Runs in round one.
+- **Platform [P0]:** Kubernetes and deployment findings, configuration evidence, and safe verification actions. Runs in round two with a question refined by mid-cycle evaluation.
+- **Security [P2]:** operational interpretation of HiddenLayer and OpenShell events. MVP: Nemotron-Super reads HiddenLayer findings directly.
+- **Historian [P2]:** retrieval and comparison of validated episodes and promoted skills. MVP: deterministic `search_skills` and `search_episodes` tools with Nemotron-Super comparison during synthesis.
+- **Critic [P2 as standalone]:** contradiction discovery, unsupported-claim detection, and bounded follow-up requests. MVP: Nemotron-Super adversarial self-critique prompt after synthesis.
 
 ### Deterministic tools
 

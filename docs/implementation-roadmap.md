@@ -52,17 +52,18 @@ The target component and deployment boundaries are maintained in the [architectu
 
 **Outcome:** real, bounded, observable model work runs through vLLM.
 
-- Deploy and validate Nemotron and specialist endpoints.
+- Deploy and validate Nemotron-Super (main) and Nemotron-Nano (specialist) endpoints.
 - Implement the model-provider abstraction and tiered router.
-- Add Observability, Platform, and Historian structured contracts.
-- Add Security and Critic contracts required by the demo flow.
+- Add Observability and Platform specialist contracts (P0).
+- Implement two-phase execution: Observability and deterministic tools run concurrently in round one; mid-cycle evaluation fires; Platform runs in round two with the confirmed or revised question.
+- Implement Nemotron-Super adversarial self-critique prompt for the Critic role (P0 MVP approach per section 9.7).
+- Add Historian [P2], Security [P2], and Critic standalone agent [P2] contracts — fully designed in sections 9.5–9.7 and ready for Part Two.
 - Enforce narrow prompts, allowed evidence, token limits, and confidence rubrics.
-- Execute independent Council calls concurrently.
 - Capture role, model, tokens, time to first token, total latency, throughput, and GPU metrics.
 
-**Primary requirements:** FR-4, FR-5, FR-12, and FR-13.
+**Primary requirements:** FR-3, FR-4, FR-5, FR-12, and FR-13.
 
-**Exit gate:** three Council domains return evidence-backed JSON through real vLLM inference, and Nemotron produces a valid bounded plan and synthesis.
+**Exit gate:** Observability and Platform return evidence-backed JSON through real vLLM inference in their respective rounds; mid-cycle evaluation fires and logs a CONTINUE_PLAN or REVISE_PLAN decision; Nemotron-Super produces a valid bounded plan, synthesis, and self-critique.
 
 ## Phase 4 — Heartbeat, orchestration, and recovery
 
@@ -152,8 +153,11 @@ The target component and deployment boundaries are maintained in the [architectu
 - Model-tier cost comparison
 - NemoClaw packaging
 
-### P2 — Defer until after the submission core
+### P2 — Part Two: Council specialists and advanced features
 
+- Historian specialist with embedding retrieval, metadata filtering, and reranking (section 9.6)
+- Security specialist for HiddenLayer finding interpretation (section 9.5)
+- Critic as a standalone specialist agent (section 9.7)
 - Live Kubernetes integration
 - Draft pull request creation
 - External notifications
