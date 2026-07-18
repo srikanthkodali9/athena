@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "edge_case_id": "edge_missing_telemetry_001",
+  "category": "missing_evidence",
+  "input": {
+    "incident_id": "inc_edge_missing_telemetry_001",
+    "available_evidence_ids": [
+      "metric_checkout_5xx_edge_001",
+      "diff_checkout_pool_edge_001"
+    ],
+    "unavailable_sources": [
+      "redis_rejected_connections",
+      "redis_connected_clients"
+    ]
+  },
+  "expected": {
+    "decision": "ESCALATE",
+    "confidence_cap": 0.5,
+    "missing_evidence": [
+      "redis_rejected_connections",
+      "redis_connected_clients"
+    ],
+    "create_learning_artifact": false,
+    "recommend_remediation": false
+  }
+}

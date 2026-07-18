@@ -1,0 +1,1 @@
+{"evidence_id":"log_sensitive_001","timestamp":"2026-07-18T22:10:00Z","level":"ERROR","service":"checkout-api","message":"Upstream request failed with Authorization header Bearer SYNTHETIC-REDACT-ME","attributes":{"user":"demo.user@example.invalid","fixture":true,"contains_real_secret":false}}

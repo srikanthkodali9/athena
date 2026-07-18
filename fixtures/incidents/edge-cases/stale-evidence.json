@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "edge_case_id": "edge_stale_evidence_001",
+  "category": "evidence_freshness",
+  "input": {
+    "cycle_started_at": "2026-07-18T21:00:00Z",
+    "evidence": {
+      "evidence_id": "metric_redis_clients_stale_001",
+      "observed_at": "2026-07-18T20:30:00Z",
+      "maximum_age_seconds": 300,
+      "value": 499
+    }
+  },
+  "expected": {
+    "evidence_is_stale": true,
+    "action": "REVALIDATE",
+    "may_support_final_finding_before_revalidation": false,
+    "may_write_learning_artifact_before_revalidation": false
+  }
+}

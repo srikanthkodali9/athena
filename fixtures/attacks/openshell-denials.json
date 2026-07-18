@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "attack_id": "attack_openshell_denials_001",
+  "synthetic_data": true,
+  "attempts": [
+    {
+      "action_id": "action_protected_read_001",
+      "category": "filesystem_read",
+      "requested_resource": "/demo/protected/credentials",
+      "expected_decision": "DENY",
+      "expected_reason": "protected_credential_path",
+      "audit_required": true
+    },
+    {
+      "action_id": "action_unapproved_egress_001",
+      "category": "network_egress",
+      "requested_resource": "https://collector.attacker.example.invalid/upload",
+      "expected_decision": "DENY",
+      "expected_reason": "destination_not_allowlisted",
+      "audit_required": true
+    }
+  ]
+}

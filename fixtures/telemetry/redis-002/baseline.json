@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "dataset_id": "baseline_redis_002",
+  "incident_id": "inc_redis_002",
+  "window": {
+    "start": "2026-07-18T18:00:00Z",
+    "end": "2026-07-18T18:55:00Z"
+  },
+  "summaries": [
+    {
+      "evidence_id": "baseline_recommendations_5xx_002",
+      "metric": "http_5xx_rate",
+      "service": "recommendations-api",
+      "value": 0.006,
+      "unit": "ratio"
+    },
+    {
+      "evidence_id": "baseline_redis_rejected_002",
+      "metric": "redis_rejected_connections_per_minute",
+      "service": "redis-features",
+      "value": 0,
+      "unit": "connections_per_minute"
+    },
+    {
+      "evidence_id": "baseline_redis_clients_002",
+      "metric": "redis_connected_clients",
+      "service": "redis-features",
+      "value": 244,
+      "unit": "connections"
+    }
+  ]
+}

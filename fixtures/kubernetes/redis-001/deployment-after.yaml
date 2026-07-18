@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-api
+  namespace: commerce
+  annotations:
+    athena.fixture/version: after
+    athena.fixture/diff-evidence-id: diff_checkout_pool_001
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: checkout-api
+  template:
+    metadata:
+      labels:
+        app: checkout-api
+    spec:
+      containers:
+        - name: checkout-api
+          image: example.invalid/checkout-api:2026.07.18.1
+          env:
+            - name: REDIS_HOST
+              value: redis-cart.commerce.svc
+            - name: REDIS_POOL_MAX_SIZE
+              value: "120"
+            - name: REDIS_POOL_ACQUIRE_TIMEOUT_MS
+              value: "250"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi

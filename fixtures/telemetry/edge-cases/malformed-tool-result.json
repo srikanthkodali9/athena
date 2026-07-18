@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "edge_case_id": "edge_malformed_tool_result_001",
+  "category": "schema_validation",
+  "tool_result": {
+    "tool": "query_metrics",
+    "status": "success",
+    "evidence": [
+      {
+        "id": "metric_bad_value_001",
+        "type": "metric",
+        "source": "prometheus_fixture",
+        "value": "eighteen percent"
+      }
+    ],
+    "error": null
+  },
+  "expected": {
+    "schema_valid": false,
+    "register_evidence": false,
+    "model_context_inclusion": false,
+    "action": "REJECT_TOOL_RESULT"
+  }
+}

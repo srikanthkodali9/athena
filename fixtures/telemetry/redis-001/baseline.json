@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "dataset_id": "baseline_redis_001",
+  "incident_id": "inc_redis_001",
+  "window": {
+    "start": "2026-07-18T17:00:00Z",
+    "end": "2026-07-18T17:55:00Z"
+  },
+  "summaries": [
+    {
+      "evidence_id": "baseline_checkout_5xx_001",
+      "metric": "http_5xx_rate",
+      "service": "checkout-api",
+      "value": 0.01,
+      "unit": "ratio"
+    },
+    {
+      "evidence_id": "baseline_redis_rejected_001",
+      "metric": "redis_rejected_connections_per_minute",
+      "service": "redis-cart",
+      "value": 0,
+      "unit": "connections_per_minute"
+    },
+    {
+      "evidence_id": "baseline_redis_clients_001",
+      "metric": "redis_connected_clients",
+      "service": "redis-cart",
+      "value": 318,
+      "unit": "connections"
+    },
+    {
+      "evidence_id": "baseline_checkout_latency_001",
+      "metric": "http_request_duration_p95_seconds",
+      "service": "checkout-api",
+      "value": 0.24,
+      "unit": "seconds"
+    }
+  ]
+}

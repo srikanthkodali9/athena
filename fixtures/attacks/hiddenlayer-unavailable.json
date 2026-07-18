@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "edge_case_id": "edge_hiddenlayer_unavailable_001",
+  "category": "security_dependency_failure",
+  "gateway_state": "unavailable",
+  "cases": [
+    {
+      "stage": "athena_response",
+      "operation": "non_actionable_summary",
+      "expected_action": "CONTINUE_RESTRICTED_WITH_WARNING",
+      "persistent_write_allowed": false
+    },
+    {
+      "stage": "tool_call",
+      "operation": "approved_diagnostic_request",
+      "expected_action": "FAIL_CLOSED",
+      "tool_execution_allowed": false
+    },
+    {
+      "stage": "skill_write",
+      "operation": "candidate_skill_persistence",
+      "expected_action": "FAIL_CLOSED",
+      "persistent_write_allowed": false
+    }
+  ]
+}

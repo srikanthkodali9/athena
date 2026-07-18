@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "evidence_id": "k8s_redis_maxclients_001",
+  "observed_at": "2026-07-18T18:06:30Z",
+  "object": {
+    "kind": "StatefulSet",
+    "name": "redis-cart",
+    "namespace": "commerce"
+  },
+  "redis_config": {
+    "maxclients": 500,
+    "connected_clients": 499,
+    "blocked_clients": 0,
+    "used_memory_percent": 61.2,
+    "evicted_keys": 0
+  },
+  "health": {
+    "ready_replicas": 1,
+    "desired_replicas": 1,
+    "pod_restarts": 0
+  }
+}

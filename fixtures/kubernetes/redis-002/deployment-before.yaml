@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recommendations-api
+  namespace: personalization
+  annotations:
+    athena.fixture/version: before
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: recommendations-api
+  template:
+    metadata:
+      labels:
+        app: recommendations-api
+    spec:
+      containers:
+        - name: recommendations-api
+          image: example.invalid/recommendations-api:2026.07.10.4
+          env:
+            - name: REDIS_HOST
+              value: redis-features.personalization.svc
+            - name: REDIS_POOL_MAX_SIZE
+              value: "40"
+            - name: REDIS_POOL_ACQUIRE_TIMEOUT_MS
+              value: "200"
