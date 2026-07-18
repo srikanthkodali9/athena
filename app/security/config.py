@@ -16,6 +16,23 @@ def _as_bool(value: str | None, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _val(value: str | None) -> str | None:
+    """Sanitize an env value; return ``None`` for empty or comment-only input.
+
+    A blank ``.env`` line with a trailing inline comment (``KEY=   # note``) can
+    reach us with the comment as the value depending on the dotenv parser. Such
+    a value must NOT be handed to the HiddenLayer client as a real base_url /
+    auth_url / token, or construction fails and every inspection silently falls
+    back to fail-closed. No real credential or URL begins with ``#``.
+    """
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped or stripped.startswith("#"):
+        return None
+    return stripped
+
+
 @dataclass(frozen=True)
 class SecurityConfig:
     """Resolved security configuration (HiddenLayer + OpenShell).
@@ -53,15 +70,15 @@ class SecurityConfig:
     def from_env(cls, env: dict[str, str] | None = None) -> "SecurityConfig":
         env = env if env is not None else dict(os.environ)
         return cls(
-            mode=(env.get("ATHENA_SECURITY_MODE") or "mock").strip().lower(),
-            environment=(env.get("ATHENA_SECURITY_ENVIRONMENT") or "prod-us").strip(),
-            client_id=(env.get("ATHENA_SECURITY_CLIENT_ID") or None),
-            client_secret=(env.get("ATHENA_SECURITY_CLIENT_SECRET") or None),
-            auth_url=(env.get("ATHENA_SECURITY_AUTH_URL") or None),
-            base_url=(env.get("ATHENA_SECURITY_BASE_URL") or None),
-            bearer_token=(env.get("ATHENA_SECURITY_TOKEN") or None),
+            mode=(_val(env.get("ATHENA_SECURITY_MODE")) or "mock").lower(),
+            environment=(_val(env.get("ATHENA_SECURITY_ENVIRONMENT")) or "prod-us"),
+            client_id=_val(env.get("ATHENA_SECURITY_CLIENT_ID")),
+            client_secret=_val(env.get("ATHENA_SECURITY_CLIENT_SECRET")),
+            auth_url=_val(env.get("ATHENA_SECURITY_AUTH_URL")),
+            base_url=_val(env.get("ATHENA_SECURITY_BASE_URL")),
+            bearer_token=_val(env.get("ATHENA_SECURITY_TOKEN")),
             fail_closed=_as_bool(env.get("ATHENA_SECURITY_FAIL_CLOSED"), True),
             openshell_policy_path=(
-                env.get("ATHENA_OPENSHELL_POLICY_PATH") or "policies/openshell.yaml"
+                _val(env.get("ATHENA_OPENSHELL_POLICY_PATH")) or "policies/openshell.yaml"
             ),
         )

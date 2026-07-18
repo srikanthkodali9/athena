@@ -15,6 +15,7 @@ cycle — so costly/irreversible actions never run twice.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import uuid
@@ -164,6 +165,13 @@ class _Step:
 class HeartbeatService:
     """Shared command handler for manual and periodic heartbeats."""
 
+    # Per-step wall-clock budget. Generous enough for a slow live Nemotron call
+    # (observed up to ~35s) but bounded so a hung/never-returning streaming call
+    # can never freeze a cycle indefinitely — it is cancelled and the cycle ends
+    # in a degraded CONTAIN state. Complements any per-call timeout in the
+    # inference adapter.
+    _STEP_TIMEOUT_SECONDS: float = 90.0
+
     def __init__(
         self,
         *,
@@ -262,7 +270,24 @@ class HeartbeatService:
                     cycle.recovery_actions.append(f"skipped completed step {step.name}")
                     continue
 
-                result = await step.fn(self, ctx)
+                try:
+                    # Per-step deadline: a hung model/tool call is cancelled
+                    # rather than freezing the cycle forever (NFR reliability;
+                    # FR-3 deadline). Slow-but-progressing multi-step cycles are
+                    # unaffected — each step gets its own generous budget.
+                    result = await asyncio.wait_for(
+                        step.fn(self, ctx), timeout=self._STEP_TIMEOUT_SECONDS
+                    )
+                except asyncio.TimeoutError:
+                    cycle.decision = cycle.decision or Decision.CONTAIN
+                    cycle.error = (
+                        f"step {step.name} exceeded {self._STEP_TIMEOUT_SECONDS}s "
+                        "budget; terminated in degraded mode"
+                    )
+                    cycle.recovery_actions.append(
+                        f"step {step.name} timed out — degraded termination"
+                    )
+                    break
                 self._store.checkpoint(
                     cycle,
                     Checkpoint(
