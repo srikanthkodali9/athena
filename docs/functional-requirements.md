@@ -54,8 +54,12 @@ This backlog decomposes the proposal's FR-1 through FR-14 into implementable tas
 - [ ] **FR3-04:** define confidence, containment, no-new-evidence, and deadline stop conditions.
 - [ ] **FR3-05:** attach the required security posture and approval requirements.
 - [ ] **FR3-06:** reject plans that exceed policy or omit mandatory bounds.
+- [ ] **FR3-07:** Athena shall run the Observability specialist and deterministic tools concurrently as a first round before Platform specialist scope is finalised.
+- [ ] **FR3-08:** after first-round results, Athena shall invoke Nemotron-Super to evaluate whether the initial hypothesis remains valid (mid-cycle evaluation), producing CONTINUE_PLAN or REVISE_PLAN with a logged reason.
+- [ ] **FR3-09:** when mid-cycle evaluation produces REVISE_PLAN, Athena shall update the Platform specialist question before the second round runs, within the same cycle.
+- [ ] **FR3-10:** mid-cycle plan revision shall be bounded to one revision per cycle; the original plan, revision trigger reason, and updated Platform scope shall be persisted alongside the cycle record.
 
-**Acceptance:** no specialist, model, or investigation tool executes until a valid bounded plan exists.
+**Acceptance:** no specialist, model, or investigation tool executes until a valid bounded plan exists. Mid-cycle evaluation fires after Round 1 and produces a logged CONTINUE_PLAN or REVISE_PLAN decision before Platform runs.
 
 ## FR-4 — Tiered model routing
 
@@ -72,18 +76,18 @@ This backlog decomposes the proposal's FR-1 through FR-14 into implementable tas
 
 ## FR-5 — Specialist coordination
 
-**Requirement:** at least three Council domains return structured, evidence-backed output.
+**Requirement:** at least three Council domains return structured, evidence-backed output. For the P0 MVP, Observability and Platform run as specialist models (Nemotron-Nano via vLLM) and the Critic domain is fulfilled by a Nemotron-Super adversarial prompt per section 9.7. FR5-03, FR5-04, and FR5-05 are deferred to Part Two.
 
 - [ ] **FR5-01:** implement the Observability specialist contract.
 - [ ] **FR5-02:** implement the Platform specialist contract.
-- [ ] **FR5-03:** implement the Historian domain using filtered retrieval, reranking, and bounded comparison.
-- [ ] **FR5-04:** add Security specialist behavior for the poisoned-runbook scenario.
-- [ ] **FR5-05:** implement Critic behavior with no execution capability.
+- [ ] **FR5-03 [P2]:** implement the Historian domain using filtered retrieval, reranking, and bounded comparison.
+- [ ] **FR5-04 [P2]:** add Security specialist behavior for the poisoned-runbook scenario.
+- [ ] **FR5-05 [P2]:** implement Critic as a standalone specialist agent with no execution capability.
 - [ ] **FR5-06:** restrict every prompt to one question, allowed evidence IDs, allowed tools, prohibitions, and a confidence rubric.
-- [ ] **FR5-07:** execute independent Council tasks concurrently.
+- [ ] **FR5-07:** execute Observability (round one) and Platform (round two) in their respective investigation rounds; run deterministic tools concurrently with Observability.
 - [ ] **FR5-08:** schema-validate all outputs and allow at most one structured-output repair retry.
 
-**Acceptance:** three domains return valid findings containing evidence IDs, confidence, and missing evidence; no specialist makes the final decision.
+**Acceptance:** Observability and Platform return valid findings containing evidence IDs, confidence, and missing evidence; Nemotron-Super adversarial prompt provides Critic domain coverage; no specialist makes the final decision.
 
 ## FR-6 — Evidence-backed findings
 
@@ -124,8 +128,9 @@ This backlog decomposes the proposal's FR-1 through FR-14 into implementable tas
 - [ ] **FR8-06:** build deterministic replay validation and record validation history.
 - [ ] **FR8-07:** require additional evidence or approval for weak or high-risk candidates.
 - [ ] **FR8-08:** exclude quarantined artifacts from retrieval.
+- [ ] **FR8-09:** extract `known_false_leads` from rejected mid-cycle hypotheses and failed investigation paths and include them in the candidate skill schema alongside the winning procedure.
 
-**Acceptance:** incident one creates a scanned candidate skill that is promoted only after replay validation succeeds.
+**Acceptance:** incident one creates a scanned candidate skill that is promoted only after replay validation succeeds. The promoted skill contains at least one `known_false_lead` entry derived from a REVISE_PLAN decision or a negatively-confirmed hypothesis during the investigation.
 
 ## FR-9 — Runbook improvement
 

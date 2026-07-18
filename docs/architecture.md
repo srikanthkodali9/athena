@@ -32,9 +32,9 @@ flowchart TB
         MAIN["Nemotron strategic model"]
         OBS["Observability specialist"]
         PLAT["Platform specialist"]
-        HIST["Incident historian"]
-        SEC["Security specialist"]
-        CRITIC["Critic and verifier"]
+        HIST["Incident historian [P2]"]
+        SEC["Security specialist [P2]"]
+        CRITIC["Critic and verifier [P2]"]
     end
 
     subgraph LEARNING["Memory and learning plane"]
@@ -187,20 +187,30 @@ sequenceDiagram
         A->>HL: Inspect plan and prompts
         HL-->>A: Policy decisions
 
-        par Deterministic evidence
+        par Round 1: deterministic evidence and Observability
             A->>T: Run approved read-only queries
             T-->>A: Evidence envelopes
-        and Specialist interpretations
-            A->>C: Run narrow Council tasks concurrently
-            C-->>A: Structured findings with evidence IDs
+        and
+            A->>C: Run Observability specialist (Nemotron-Nano)
+            C-->>A: Symptoms, timeline, hypothesis with evidence IDs
         end
 
-        A->>HL: Inspect tool results and model responses
-        HL-->>A: Sanitized trusted context
+        A->>HL: Inspect Round 1 tool results and Observability response
+        HL-->>A: Sanitised trusted context
+
+        A->>N: Mid-cycle evaluation — CONTINUE_PLAN or REVISE_PLAN
+        N-->>A: Confirmed or revised Platform specialist question
+
+        A->>C: Run Platform specialist (Nemotron-Nano) with updated question
+        C-->>A: Infrastructure findings with evidence IDs
+
+        A->>HL: Inspect Platform response
+        HL-->>A: Sanitised trusted context
+
         A->>N: Synthesize and resolve contradictions
         N-->>A: Root cause, confidence, and recommendation
-        A->>N: Run critic prompt when required
-        N-->>A: Validation or bounded follow-up request
+        A->>N: Run adversarial self-critique prompt (Critic role)
+        N-->>A: Validated conclusion or identified unsupported claim
 
         alt Approval required
             A-->>U: Create approval request
