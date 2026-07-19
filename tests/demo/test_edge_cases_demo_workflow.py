@@ -1,4 +1,4 @@
-"""Separate workflow coverage for the ``fixtures/codex`` catalog."""
+"""Separate workflow coverage for the ``fixtures/edge_cases`` catalog."""
 
 from __future__ import annotations
 
@@ -9,32 +9,32 @@ from pathlib import Path
 
 import pytest
 
-from app.ui.codex_demo_runner import _catalog_path, run_codex_demo
+from app.ui.edge_cases_demo_runner import _catalog_path, run_edge_cases_demo
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_codex_workflow_passes_without_existing_fixture_registry(monkeypatch):
+def test_edge_cases_workflow_passes_without_existing_fixture_registry(monkeypatch):
     """The new workflow must never fall through to ``app.tools.fixtures``."""
 
     def _mixed_fixture_access(*args, **kwargs):
         raise AssertionError("existing fixture registry must not be used")
 
     monkeypatch.setattr("app.tools.fixtures.get_fixture", _mixed_fixture_access)
-    result = run_codex_demo()
+    result = run_edge_cases_demo()
 
     assert result.passed is True
-    assert result.fixture_root == "fixtures/codex"
+    assert result.fixture_root == "fixtures/edge_cases"
     assert result.isolation == {
         "uses_existing_fixture_registry": False,
         "writes_core_demo_state": False,
-        "uses_only_codex_manifest_paths": True,
+        "uses_only_edge_cases_manifest_paths": True,
         "oracle_separated_from_runtime": True,
     }
 
 
-def test_codex_core_scenarios_revise_then_reuse():
-    result = run_codex_demo()
+def test_edge_cases_core_scenarios_revise_then_reuse():
+    result = run_edge_cases_demo()
     first, learned = result.scenarios
 
     assert first.scenario_id == "redis-001"
@@ -59,13 +59,13 @@ def test_codex_core_scenarios_revise_then_reuse():
     }
 
 
-def test_codex_required_evidence_comes_from_runtime_datasets():
-    result = run_codex_demo()
+def test_edge_cases_required_evidence_comes_from_runtime_datasets():
+    result = run_edge_cases_demo()
     for scenario in result.scenarios:
         oracle_path = (
             ROOT
             / "fixtures"
-            / "codex"
+            / "edge_cases"
             / "incidents"
             / scenario.scenario_id
             / "expected-outcome.json"
@@ -77,8 +77,8 @@ def test_codex_required_evidence_comes_from_runtime_datasets():
         assert scenario.maximum_possible_clients > scenario.redis_maxclients
 
 
-def test_codex_security_and_all_edge_cases_pass():
-    result = run_codex_demo()
+def test_edge_cases_security_and_all_edge_cases_pass():
+    result = run_edge_cases_demo()
     security = result.security
     assert security.passed is True
     assert security.poisoned_runbook_action == "quarantine"
@@ -91,45 +91,61 @@ def test_codex_security_and_all_edge_cases_pass():
         "tool_call": "block",
         "skill_write": "reject_persistence",
     }
-    assert len(result.edge_cases) == 8
-    assert all(edge.passed for edge in result.edge_cases)
+    assert len(result.validations) == 8
+    assert all(edge.passed for edge in result.validations)
 
 
-def test_codex_manifest_path_cannot_escape_to_existing_fixtures():
+def test_edge_cases_manifest_path_cannot_escape_to_existing_fixtures():
     with pytest.raises(ValueError, match="escapes fixture root"):
         _catalog_path("fixtures/incidents/incident-one.json")
 
 
-def test_codex_demo_endpoint_does_not_mutate_existing_demo(demo_client):
+def test_edge_cases_demo_endpoint_does_not_mutate_existing_demo(demo_client):
     before = demo_client.get("/api/v1/demo/state").json()
     assert before["has_run"] is False
     assert before["security"]["inspection_count"] == 0
 
-    response = demo_client.post("/api/v1/demo/codex/run")
+    response = demo_client.post("/api/v1/demo/edge-cases/run")
     assert response.status_code == 200, response.text
     assert response.json()["passed"] is True
 
     after = demo_client.get("/api/v1/demo/state").json()
     assert after["has_run"] is False
     assert after["security"]["inspection_count"] == 0
-    assert after["codex"]["passed"] is True
+    assert after["edge_cases"]["passed"] is True
 
 
-def test_dashboard_has_single_run_control_and_codex_view(demo_client):
-    """The redesigned console has one run control and surfaces Codex as its own
+def test_dashboard_has_single_run_control_and_edge_cases_view(demo_client):
+    """The redesigned console has one run control and surfaces edge cases as its own
     navigable page (its panels are rendered client-side from /demo/console)."""
     response = demo_client.get("/dashboard/")
     assert response.status_code == 200, response.text
     html = response.text
 
     assert html.count('id="run"') == 1
-    assert 'data-page="codex"' in html
-    assert 'id="page-codex"' in html
+    assert 'data-page="edge-cases"' in html
+    assert 'id="page-edge-cases"' in html
 
 
-def test_codex_demo_script_returns_success_and_json():
+def test_run_cycle_refreshes_dashboard_before_reenabling_button(demo_client):
+    response = demo_client.get("/dashboard/app.js")
+    assert response.status_code == 200, response.text
+
+    script = response.text
+    start = script.index("async function runCycle()")
+    end = script.index("\ndocument.querySelectorAll", start)
+    handler = script[start:end]
+
+    assert "finally" in handler
+    assert handler.index('await fetch(API + "/demo/run"') < handler.index(
+        "await refresh()"
+    )
+    assert handler.index("await refresh()") < handler.index("btn.disabled = false")
+
+
+def test_edge_cases_demo_script_returns_success_and_json():
     completed = subprocess.run(
-        [sys.executable, "scripts/codex_demo.py", "--json"],
+        [sys.executable, "scripts/edge_cases_demo.py", "--json"],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -137,5 +153,5 @@ def test_codex_demo_script_returns_success_and_json():
     )
     assert completed.returncode == 0, completed.stderr
     body = json.loads(completed.stdout)
-    assert body["workflow"] == "codex_fixture_workflow"
+    assert body["workflow"] == "edge_cases_fixture_workflow"
     assert body["passed"] is True

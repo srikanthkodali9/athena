@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.api.app import create_app
 from app.api.dependencies import _select_inference, build_context
 from app.athena.ports import ChatResult, MockInference
+from app.security.inference import SecuredInferencePort
 from tests.core.conftest import make_settings
 
 
@@ -73,6 +74,17 @@ def test_stray_env_cannot_flip_mock_settings_to_live(tmp_path, monkeypatch):
 def test_inference_seam_mock(tmp_path):
     settings = make_settings(tmp_path, inference_mode="mock")
     assert isinstance(_select_inference(settings), MockInference)
+
+
+def test_application_context_mandatorily_wraps_inference_with_security(tmp_path):
+    settings = make_settings(tmp_path, inference_mode="mock", security_mode="mock")
+    ctx = build_context(settings)
+    try:
+        assert isinstance(ctx.inference, SecuredInferencePort)
+        assert isinstance(ctx.inference.inner, MockInference)
+        assert ctx.heartbeat._inference is ctx.inference
+    finally:
+        ctx.close()
 
 
 def test_inference_seam_live_is_guarded(tmp_path):

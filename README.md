@@ -82,7 +82,7 @@ overridden, resets the SQLite demo state, and starts the dashboard at:
 Use one of the following ways to run the story:
 
 - Open the dashboard and select **Run both demos**. This one button runs the
-  standard `fixtures/incidents` story and the isolated `fixtures/codex`
+  standard `fixtures/incidents` story and the isolated `fixtures/edge_cases`
   workflow, then shows both result sets in separate dashboard sections.
 - From a second terminal, run the command-line replay:
 
@@ -95,9 +95,9 @@ comparison, and shows the sanitized HiddenLayer and OpenShell decisions.
 
 Stop the server with `Ctrl+C`.
 
-## Run the separate Codex dataset workflow
+## Run the separate edge-cases dataset workflow
 
-The datasets under `fixtures/codex/` have their own isolated workflow. It does
+The datasets under `fixtures/edge_cases/` have their own isolated workflow. It does
 not import the existing `app.tools.fixtures` registry, does not write to the
 normal demo SQLite state, and never treats `expected-outcome.json` as runtime
 evidence.
@@ -105,30 +105,30 @@ evidence.
 Run it directly without starting a server:
 
 ```bash
-./scripts/run_codex_demo.sh
+./scripts/run_edge_cases_demo.sh
 ```
 
 Print the complete result as JSON:
 
 ```bash
-./scripts/run_codex_demo.sh --json
+./scripts/run_edge_cases_demo.sh --json
 ```
 
-The workflow runs the two Codex Redis scenarios, promotes and reuses the
-ephemeral replay-validated skill, exercises the Codex security datasets, checks
+The workflow runs the two edge-cases Redis scenarios, promotes and reuses the
+ephemeral replay-validated skill, exercises the edge-cases security datasets, checks
 all eight edge cases, and enforces the required two-metric improvement gate.
 
 The dashboard's **Run both demos** button includes this workflow automatically
-and displays it below the standard heartbeat panels. To run only the Codex
+and displays it below the standard heartbeat panels. To run only the edge-cases
 workflow while the dashboard server is running, use its dedicated endpoint:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8000/api/v1/demo/codex/run \
+curl -sS -X POST http://127.0.0.1:8000/api/v1/demo/edge-cases/run \
   | python3 -m json.tool
 ```
 
 `./scripts/run_replay.sh` continues to use only the original fixture path. The
-combined dashboard action does not mix Codex results into the original cycles,
+combined dashboard action does not mix edge-cases results into the original cycles,
 learning store, comparison, or security ledger.
 
 ## Run the API without the demo dashboard
@@ -242,10 +242,10 @@ Validate the synthetic fixture catalog:
 uv run python scripts/validate_fixtures.py
 ```
 
-Run only the Codex workflow tests:
+Run only the edge-cases workflow tests:
 
 ```bash
-uv run pytest -q tests/demo/test_codex_demo_workflow.py
+uv run pytest -q tests/demo/test_edge_cases_demo_workflow.py
 ```
 
 Run the first-versus-learned improvement gate in process:
@@ -266,7 +266,7 @@ credentials are explicitly configured.
 - [API and endpoint map](docs/api-endpoints.md)
 - [Functional-requirement backlog](docs/functional-requirements.md)
 - [Implementation roadmap](docs/implementation-roadmap.md)
-- [Synthetic demo datasets](fixtures/codex/README.md)
+- [Synthetic demo datasets](fixtures/edge_cases/README.md)
 
 ## Engineering principles
 

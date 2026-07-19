@@ -63,6 +63,47 @@ _FIXTURES: dict[str, dict[str, Any]] = {
                 "image_changed": False,
             },
         },
+        "logs": [
+            {
+                "id": "ev_log-api-redis-21",
+                "type": "log",
+                "source": "loki",
+                "provenance": {
+                    "query": "service=api redis connection errors",
+                    "window": "5m",
+                    "service": "api",
+                },
+                "data": {
+                    "timestamp": "2026-07-18T09:42:00Z",
+                    "level": "error",
+                    "message": "Redis connection rejected: maximum clients reached",
+                },
+            }
+        ],
+        "repository_snapshot": {
+            "id": "ev_repo-api-config-8",
+            "type": "repository",
+            "source": "repository",
+            "provenance": {
+                "path": "services/api/deployment.yaml",
+                "revision": "api-1181",
+            },
+            "data": {"REDIS_POOL_MAX": "500", "image_changed": False},
+        },
+        "dependency": {
+            "id": "ev_dep-api-redis-1",
+            "type": "dependency",
+            "source": "service_catalog",
+            "provenance": {"service": "api", "snapshot": "fixture-v1"},
+            "data": {"upstream": "api", "downstream": "redis", "kind": "required"},
+        },
+        "blast_radius": {
+            "id": "ev_blast-api-redis-1",
+            "type": "blast_radius",
+            "source": "service_catalog",
+            "provenance": {"dependency": "redis", "snapshot": "fixture-v1"},
+            "data": {"affected_services": ["api"], "affected_service_count": 1},
+        },
         "change_signal": {
             "source": "prometheus",
             "kind": "metric_threshold_breach",
@@ -118,6 +159,54 @@ _FIXTURES: dict[str, dict[str, Any]] = {
                     }
                 ],
                 "image_changed": False,
+            },
+        },
+        "logs": [
+            {
+                "id": "ev_log-checkout-redis-33",
+                "type": "log",
+                "source": "loki",
+                "provenance": {
+                    "query": "service=checkout redis connection errors",
+                    "window": "5m",
+                    "service": "checkout",
+                },
+                "data": {
+                    "timestamp": "2026-07-19T14:03:00Z",
+                    "level": "error",
+                    "message": "Redis connection rejected: maximum clients reached",
+                },
+            }
+        ],
+        "repository_snapshot": {
+            "id": "ev_repo-checkout-config-10",
+            "type": "repository",
+            "source": "repository",
+            "provenance": {
+                "path": "services/checkout/deployment.yaml",
+                "revision": "checkout-1205",
+            },
+            "data": {"REDIS_POOL_MAX": "600", "image_changed": False},
+        },
+        "dependency": {
+            "id": "ev_dep-checkout-redis-2",
+            "type": "dependency",
+            "source": "service_catalog",
+            "provenance": {"service": "checkout", "snapshot": "fixture-v1"},
+            "data": {
+                "upstream": "checkout",
+                "downstream": "redis",
+                "kind": "required",
+            },
+        },
+        "blast_radius": {
+            "id": "ev_blast-checkout-redis-2",
+            "type": "blast_radius",
+            "source": "service_catalog",
+            "provenance": {"dependency": "redis", "snapshot": "fixture-v1"},
+            "data": {
+                "affected_services": ["checkout"],
+                "affected_service_count": 1,
             },
         },
         "change_signal": {

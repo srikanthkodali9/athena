@@ -24,7 +24,7 @@ together; the lifecycle enforces that ordering.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Optional, Sequence
 
 from pydantic import BaseModel, ValidationError
@@ -39,6 +39,7 @@ from app.council.schemas import (
 )
 from app.models.json_extract import extract_json
 from app.models.prompt_loader import load_prompt
+from app.security.inference import SecurityBoundaryDenied
 
 # Cap applied when a specialist cites nothing inside its allowlist — an
 # uncited/mis-cited claim cannot carry operational weight (rubric floor).
@@ -77,6 +78,8 @@ class SpecialistOutcome:
     degraded: bool
     rejected_citations: list[str] = field(default_factory=list)
     metrics: Any = None
+    inference_attempts: int = 1
+    security_inspections: int = 0
 
 
 def _render_evidence(evidence: Sequence[Evidence]) -> str:
@@ -145,6 +148,7 @@ class Specialist:
         *,
         max_tokens: int = 1600,
         allowed_tools: list[str] | None = None,
+        cycle_id: str | None = None,
     ) -> SpecialistOutcome:
         contract = self.build_contract(question, evidence, allowed_tools)
         messages, version = self._build_messages(contract, evidence)
@@ -162,8 +166,13 @@ class Specialist:
             # generous headroom so a slow-but-valid answer is not turned into a
             # spurious InferenceUnavailable at the default 30s (live flake fix).
             timeout_seconds=90.0,
+            cycle_id=cycle_id,
+            security_producer=f"specialist:{self.role}",
+            security_consumer="specialist_dispatcher",
         )
         result = await self._inference.complete(request)
+        inference_attempts = result.inference_attempts
+        security_inspections = result.security_inspections
         degraded = bool(getattr(result, "degraded", False))
         metrics = getattr(result, "metrics", None)
 
@@ -171,8 +180,16 @@ class Specialist:
         if output is None:
             # ONE targeted Pydantic-aware repair retry (distinct from any JSON
             # parse repair): show the model exactly what was wrong.
-            repair_req = self._repair_request(messages, result.content, val_error, max_tokens)
-            result = await self._inference.complete(repair_req)
+            repair_req = self._repair_request(
+                request, result.content, val_error, max_tokens
+            )
+            try:
+                result = await self._inference.complete(repair_req)
+            except SecurityBoundaryDenied as exc:
+                exc.inference_attempts += inference_attempts
+                raise
+            inference_attempts += result.inference_attempts
+            security_inspections += result.security_inspections
             metrics = getattr(result, "metrics", None) or metrics
             output, val_error = self._try_validate(result.content)
             if output is None:
@@ -196,6 +213,8 @@ class Specialist:
             degraded=degraded,
             rejected_citations=rejected,
             metrics=metrics,
+            inference_attempts=inference_attempts,
+            security_inspections=security_inspections,
         )
 
     def _try_validate(
@@ -211,7 +230,7 @@ class Specialist:
 
     def _repair_request(
         self,
-        original: list[ChatMessage],
+        original: ChatRequest,
         bad_content: str,
         error: Optional[ValidationError],
         max_tokens: int,
@@ -234,16 +253,15 @@ class Specialist:
             "Example shape:\n"
             f"{json.dumps(self.output_model.example(), indent=2)}"  # type: ignore[attr-defined]
         )
-        messages = list(original) + [
+        messages = list(original.messages) + [
             ChatMessage(role="assistant", content=bad_content[:1500]),
             ChatMessage(role="user", content=instruction),
         ]
-        return ChatRequest(
+        return replace(
+            original,
             messages=messages,
-            model_role="specialist",
             max_tokens=max_tokens,
-            temperature=0.0,
-            timeout_seconds=90.0,
+            security_producer="specialist_repair",
         )
 
     def _empty_output(self) -> BaseModel:

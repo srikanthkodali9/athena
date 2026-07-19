@@ -34,6 +34,7 @@ from app.learning.store import LearningStore
 from app.memory.store import CycleStore
 from app.security.config import SecurityConfig
 from app.security.gateway import HiddenLayerGateway
+from app.security.inference import ensure_secured_inference
 from app.security.openshell import OpenShellEngine
 from app.tools.registry import ToolRegistry, build_default_registry
 
@@ -71,6 +72,7 @@ def build_context(settings: Settings | None = None) -> AppContext:
     # service change needed. The ledger is shared with OpenShell so denials and
     # findings surface through one sanitized projection.
     security = HiddenLayerGateway.from_config(_resolve_security_config(settings))
+    inference = ensure_secured_inference(inference, security)
     openshell = _build_openshell(settings, security)
 
     # Recursive learning over the SAME SQLite file (its own tables). The learning
@@ -90,6 +92,7 @@ def build_context(settings: Settings | None = None) -> AppContext:
         settings=settings,
         learning=learning,
         retriever=retriever,
+        openshell=openshell,
     )
     return AppContext(
         settings=settings,

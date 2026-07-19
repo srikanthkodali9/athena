@@ -1,9 +1,10 @@
 """TieredInferenceRouter — the live ``InferencePort`` implementation (FR-4).
 
-Routes each :class:`ChatRequest` by ``model_role`` to the right model tier,
-enforces structured JSON output with **exactly one** repair retry, and records a
-full :class:`InferenceMetrics` row per call (model id, role, routing reason,
-tokens, ttft, latency, degraded, repaired).
+Routes each :class:`ChatRequest` by ``model_role`` to the right model tier and
+records a full :class:`InferenceMetrics` row per call. Direct callers retain the
+bounded empty/schema retries; production requests set
+``security_managed_retries`` so :class:`SecuredInferencePort` owns every retry
+and no model attempt can occur outside HiddenLayer inspection.
 
 Routing matrix (PRD §10.2 / ADR-0003 six-call contract):
 
@@ -16,15 +17,14 @@ Deterministic work (parse alert / metric delta / k8s reads / manifest diffs)
 never calls this router at all — it stays in ``app/tools`` — which is the first
 row of the matrix ("use no LLM when deterministic logic can answer").
 
-``ChatResult`` (core-owned) has no ``ttft_ms`` / ``routing_reason`` fields yet, so
-we (1) set the fields it *does* have, (2) attach the rich metrics object as
-``result.metrics`` (ChatResult is a plain dataclass, so this is safe), and
-(3) append to ``self.metrics_log``. The handoff asks core to add the two fields.
+The core ``ChatResult`` carries common routing/security counters; the router
+also attaches its richer ``InferenceMetrics`` object and appends it to
+``self.metrics_log``.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Optional
 
 from app.athena.ports import ChatMessage, ChatRequest, ChatResult, InferencePort
@@ -158,9 +158,7 @@ class TieredInferenceRouter(InferencePort):
             # with a direct-answer nudge (reasoning is already toggled off) before
             # any schema repair. Applies to schema-less calls (plan/synthesis/
             # critic) too, so the orchestrator never receives empty content.
-            empty_retried = False
-            if not raw.content.strip():
-                empty_retried = True
+            if not request.security_managed_retries and not raw.content.strip():
                 raw = await self._call(
                     client, self._direct_answer_request(request), rule
                 )
@@ -174,7 +172,10 @@ class TieredInferenceRouter(InferencePort):
 
         repaired = False
         content = raw.content
-        if request.response_schema is not None:
+        if (
+            request.response_schema is not None
+            and not request.security_managed_retries
+        ):
             obj = extract_json(content)
             if not _schema_ok(obj, request.response_schema):
                 # Exactly ONE repair retry (AGENTS.md; FR5-08).
@@ -233,13 +234,10 @@ class TieredInferenceRouter(InferencePort):
             "requested, output only that JSON object."
         )
         messages = list(request.messages) + [ChatMessage(role="user", content=nudge)]
-        return ChatRequest(
+        return replace(
+            request,
             messages=messages,
-            model_role=request.model_role,
             max_tokens=max(request.max_tokens, 1024),
-            temperature=request.temperature,
-            response_schema=request.response_schema,
-            timeout_seconds=request.timeout_seconds,
         )
 
     def _repair_request(self, request: ChatRequest, bad: str) -> ChatRequest:
@@ -255,14 +253,7 @@ class TieredInferenceRouter(InferencePort):
             ChatMessage(role="assistant", content=bad[:2000]),
             ChatMessage(role="user", content=instruction),
         ]
-        return ChatRequest(
-            messages=messages,
-            model_role=request.model_role,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            response_schema=request.response_schema,
-            timeout_seconds=request.timeout_seconds,
-        )
+        return replace(request, messages=messages)
 
     def _finalize(
         self,

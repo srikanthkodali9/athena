@@ -1,7 +1,7 @@
-"""Isolated workflow demo for the ``fixtures/codex`` dataset catalog.
+"""Isolated workflow demo for the ``fixtures/edge_cases`` dataset catalog.
 
 This runner deliberately does not import or modify ``app.tools.fixtures`` and
-does not write to Athena's cycle/learning stores.  It reads the Codex manifest,
+does not write to Athena's cycle/learning stores. It reads the edge-cases manifest,
 executes a deterministic evidence-driven workflow over those files only, and
 then compares the derived result with the test-oracle files in a separate
 validation phase.
@@ -39,8 +39,8 @@ from app.security.gateway import HiddenLayerGateway
 from app.security.openshell import OpenShellEngine
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_CODEX_ROOT = (_REPO_ROOT / "fixtures" / "codex").resolve()
-_MANIFEST = _CODEX_ROOT / "manifest.json"
+_EDGE_CASES_ROOT = (_REPO_ROOT / "fixtures" / "edge_cases").resolve()
+_MANIFEST = _EDGE_CASES_ROOT / "manifest.json"
 _SKILL_ID = "sre.redis.connection-saturation"
 
 
@@ -49,7 +49,7 @@ _SKILL_ID = "sre.redis.connection-saturation"
 # ---------------------------------------------------------------------------
 
 
-class CodexScenarioMetrics(BaseModel):
+class EdgeCasesScenarioMetrics(BaseModel):
     tool_calls: int
     specialist_calls: int
     main_model_calls: int
@@ -57,13 +57,13 @@ class CodexScenarioMetrics(BaseModel):
     unsupported_hypotheses: int
 
 
-class CodexScenarioEvaluation(BaseModel):
+class EdgeCasesScenarioEvaluation(BaseModel):
     passed: bool
     checks: dict[str, bool] = Field(default_factory=dict)
     failures: list[str] = Field(default_factory=list)
 
 
-class CodexScenarioResult(BaseModel):
+class EdgeCasesScenarioResult(BaseModel):
     scenario_id: str
     incident_id: str
     service: str
@@ -88,11 +88,11 @@ class CodexScenarioResult(BaseModel):
     skill_reused: bool = False
     replay_passes: int = 0
     known_false_leads: list[KnownFalseLead] = Field(default_factory=list)
-    metrics: CodexScenarioMetrics
-    evaluation: Optional[CodexScenarioEvaluation] = None
+    metrics: EdgeCasesScenarioMetrics
+    evaluation: Optional[EdgeCasesScenarioEvaluation] = None
 
 
-class CodexComparison(BaseModel):
+class EdgeCasesComparison(BaseModel):
     candidate_metrics: list[dict[str, Any]] = Field(default_factory=list)
     improved_metrics: list[str] = Field(default_factory=list)
     improved_count: int = 0
@@ -100,7 +100,7 @@ class CodexComparison(BaseModel):
     passed: bool = False
 
 
-class CodexSecurityResult(BaseModel):
+class EdgeCasesSecurityResult(BaseModel):
     clean_runbook_action: str
     poisoned_runbook_action: str
     poisoned_tool_result_action: str
@@ -112,7 +112,7 @@ class CodexSecurityResult(BaseModel):
     passed: bool
 
 
-class CodexEdgeCaseResult(BaseModel):
+class EdgeCaseValidationResult(BaseModel):
     edge_case_id: str
     category: str
     passed: bool
@@ -120,15 +120,15 @@ class CodexEdgeCaseResult(BaseModel):
     expected: dict[str, Any] = Field(default_factory=dict)
 
 
-class CodexDemoResult(BaseModel):
-    workflow: str = "codex_fixture_workflow"
-    fixture_root: str = "fixtures/codex"
+class EdgeCasesDemoResult(BaseModel):
+    workflow: str = "edge_cases_fixture_workflow"
+    fixture_root: str = "fixtures/edge_cases"
     catalog_id: str
     isolation: dict[str, bool]
-    scenarios: list[CodexScenarioResult]
-    comparison: CodexComparison
-    security: CodexSecurityResult
-    edge_cases: list[CodexEdgeCaseResult]
+    scenarios: list[EdgeCasesScenarioResult]
+    comparison: EdgeCasesComparison
+    security: EdgeCasesSecurityResult
+    validations: list[EdgeCaseValidationResult]
     passed: bool
 
 
@@ -159,12 +159,14 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def _catalog_path(repo_relative: str) -> Path:
-    """Resolve one manifest path and reject any escape from fixtures/codex."""
+    """Resolve one manifest path and reject any escape from fixtures/edge_cases."""
     candidate = (_REPO_ROOT / repo_relative).resolve()
     try:
-        candidate.relative_to(_CODEX_ROOT)
+        candidate.relative_to(_EDGE_CASES_ROOT)
     except ValueError as exc:
-        raise ValueError(f"Codex manifest path escapes fixture root: {repo_relative}") from exc
+        raise ValueError(
+            f"Edge-cases manifest path escapes fixture root: {repo_relative}"
+        ) from exc
     if not candidate.is_file():
         raise FileNotFoundError(repo_relative)
     return candidate
@@ -308,7 +310,7 @@ def _signal_values(runtime: _RuntimeScenario) -> dict[str, float]:
     }
 
 
-def _draft_promoted_skill(result: CodexScenarioResult) -> Skill:
+def _draft_promoted_skill(result: EdgeCasesScenarioResult) -> Skill:
     lead = KnownFalseLead(
         approach=(
             f"An application regression inside {result.service} caused the 5xx errors."
@@ -363,8 +365,8 @@ def _draft_promoted_skill(result: CodexScenarioResult) -> Skill:
     inspection = security.inspect(
         InspectionRequest(
             stage=InspectionStage.SKILL_WRITE,
-            producer="codex:learning",
-            consumer="codex:ephemeral-skill",
+            producer="edge_cases:learning",
+            consumer="edge_cases:ephemeral-skill",
             content="\n".join(
                 [skill.title, skill.objective, *skill.procedure, lead.approach]
             ),
@@ -378,7 +380,7 @@ def _draft_promoted_skill(result: CodexScenarioResult) -> Skill:
     skill.hiddenlayer_status = "passed"
     fixtures = [
         ReplayFixture(
-            name="codex-redis-positive",
+            name="edge_cases-redis-positive",
             kind=ReplayKind.POSITIVE,
             signals={
                 "redis_rejected_connections": 1.0,
@@ -387,9 +389,9 @@ def _draft_promoted_skill(result: CodexScenarioResult) -> Skill:
             },
             preconditions_met=frozenset({"recent_pool_configuration_change"}),
         ),
-        ReplayFixture(name="codex-redis-negative", kind=ReplayKind.NEGATIVE),
+        ReplayFixture(name="edge_cases-redis-negative", kind=ReplayKind.NEGATIVE),
         ReplayFixture(
-            name="codex-redis-contradictory",
+            name="edge_cases-redis-contradictory",
             kind=ReplayKind.CONTRADICTORY,
             signals={
                 "redis_rejected_connections": 1.0,
@@ -412,7 +414,7 @@ def _draft_promoted_skill(result: CodexScenarioResult) -> Skill:
 
 def _run_scenario(
     runtime: _RuntimeScenario, promoted_skill: Optional[Skill]
-) -> tuple[CodexScenarioResult, Optional[Skill]]:
+) -> tuple[EdgeCasesScenarioResult, Optional[Skill]]:
     incident = runtime.incident
     service = incident["service"]["name"]
     dependency = next(
@@ -468,7 +470,7 @@ def _run_scenario(
         f"{replicas} replicas, allowing {after * replicas} possible service clients "
         f"to saturate {dependency} maxclients={maxclients} with existing consumers."
     )
-    result = CodexScenarioResult(
+    result = EdgeCasesScenarioResult(
         scenario_id=runtime.entry["scenario_id"],
         incident_id=incident["incident_id"],
         service=service,
@@ -495,7 +497,7 @@ def _run_scenario(
         ),
         skill_id=_SKILL_ID,
         skill_reused=skill_reused,
-        metrics=CodexScenarioMetrics(
+        metrics=EdgeCasesScenarioMetrics(
             tool_calls=len(incident["investigation"]["round_1"]["deterministic_tools"])
             + 1,
             specialist_calls=2,
@@ -521,8 +523,8 @@ def _run_scenario(
 
 
 def _evaluate_scenario(
-    result: CodexScenarioResult, oracle: dict[str, Any]
-) -> CodexScenarioEvaluation:
+    result: EdgeCasesScenarioResult, oracle: dict[str, Any]
+) -> EdgeCasesScenarioEvaluation:
     expected_mid = oracle["mid_cycle_expectation"]
     targets = oracle["measurement_targets"]
     required_evidence = set(oracle["required_evidence_ids"])
@@ -566,7 +568,7 @@ def _evaluate_scenario(
         checks["no_new_skill_created"] = learning.get("create_new_skill") is False
 
     failures = [name for name, passed in checks.items() if not passed]
-    return CodexScenarioEvaluation(
+    return EdgeCasesScenarioEvaluation(
         passed=not failures,
         checks=checks,
         failures=failures,
@@ -574,10 +576,10 @@ def _evaluate_scenario(
 
 
 def _compare_scenarios(
-    first: CodexScenarioResult,
-    learned: CodexScenarioResult,
+    first: EdgeCasesScenarioResult,
+    learned: EdgeCasesScenarioResult,
     learned_oracle: dict[str, Any],
-) -> CodexComparison:
+) -> EdgeCasesComparison:
     candidates = learned_oracle["measurement_targets"]["candidate_improvements"]
     rows: list[dict[str, Any]] = []
     improved: list[str] = []
@@ -626,7 +628,7 @@ def _compare_scenarios(
     required = int(
         learned_oracle["measurement_targets"]["required_improvement_count"]
     )
-    return CodexComparison(
+    return EdgeCasesComparison(
         candidate_metrics=rows,
         improved_metrics=improved,
         improved_count=len(improved),
@@ -636,28 +638,30 @@ def _compare_scenarios(
 
 
 # ---------------------------------------------------------------------------
-# Security and edge-case workflows (Codex paths only)
+# Security and edge-case workflows (edge-cases paths only)
 # ---------------------------------------------------------------------------
 
 
 class _UnavailableAdapter:
-    name = "codex-unavailable"
+    name = "edge_cases-unavailable"
     is_mock = False
 
     def inspect_content(self, stage, content, metadata):
-        raise InspectionUnavailable("Codex fixture simulates gateway outage")
+        raise InspectionUnavailable("Edge-cases fixture simulates gateway outage")
 
     def health(self) -> bool:
         return False
 
 
-def _run_security(manifest: dict[str, Any]) -> CodexSecurityResult:
+def _run_security(manifest: dict[str, Any]) -> EdgeCasesSecurityResult:
     datasets = {
         Path(raw).name: _catalog_path(raw)
         for raw in manifest["security_scenario"]["datasets"]
     }
     gateway = HiddenLayerGateway.from_config(SecurityConfig(mode="mock"))
-    clean = (_CODEX_ROOT / "runbooks" / "redis-saturation-clean.md").read_text(
+    clean = (
+        _EDGE_CASES_ROOT / "runbooks" / "redis-saturation-clean.md"
+    ).read_text(
         encoding="utf-8"
     )
     poisoned = datasets["redis-saturation-poisoned.md"].read_text(encoding="utf-8")
@@ -667,16 +671,16 @@ def _run_security(manifest: dict[str, Any]) -> CodexSecurityResult:
     clean_decision = gateway.inspect(
         InspectionRequest(
             stage=InspectionStage.RETRIEVED_CONTENT,
-            producer="codex:clean-runbook",
-            consumer="codex-workflow",
+            producer="edge_cases:clean-runbook",
+            consumer="edge_cases-workflow",
             content=clean,
         )
     )
     poison_decision = gateway.inspect(
         InspectionRequest(
             stage=InspectionStage.RETRIEVED_CONTENT,
-            producer="codex:poisoned-runbook",
-            consumer="codex-workflow",
+            producer="edge_cases:poisoned-runbook",
+            consumer="edge_cases-workflow",
             content=poisoned,
         )
     )
@@ -691,16 +695,16 @@ def _run_security(manifest: dict[str, Any]) -> CodexSecurityResult:
     persistence_decision = gateway.inspect(
         InspectionRequest(
             stage=InspectionStage.SKILL_WRITE,
-            producer="codex:poisoned-runbook",
-            consumer="codex-skill-store",
+            producer="edge_cases:poisoned-runbook",
+            consumer="edge_cases-skill-store",
             content=poisoned,
         )
     )
     sensitive_decision = gateway.inspect(
         InspectionRequest(
             stage=InspectionStage.TOOL_RESULT,
-            producer="codex:sensitive-log",
-            consumer="codex-workflow",
+            producer="edge_cases:sensitive-log",
+            consumer="edge_cases-workflow",
             content=sensitive_log,
         )
     )
@@ -733,8 +737,8 @@ def _run_security(manifest: dict[str, Any]) -> CodexSecurityResult:
         decision = unavailable_gateway.inspect(
             InspectionRequest(
                 stage=stage,
-                producer="codex:unavailable-fixture",
-                consumer="codex-workflow",
+                producer="edge_cases:unavailable-fixture",
+                consumer="edge_cases-workflow",
                 content=case["operation"],
             )
         )
@@ -762,7 +766,7 @@ def _run_security(manifest: dict[str, Any]) -> CodexSecurityResult:
             },
         ]
     )
-    return CodexSecurityResult(
+    return EdgeCasesSecurityResult(
         clean_runbook_action=clean_decision.action.value,
         poisoned_runbook_action=poison_decision.action.value,
         poisoned_tool_result_action=poisoned_tool_decision.action.value,
@@ -865,17 +869,17 @@ def _edge_actual(document: dict[str, Any]) -> dict[str, Any]:
             "model_context_inclusion": valid,
             "action": "REGISTER" if valid else "REJECT_TOOL_RESULT",
         }
-    raise ValueError(f"unsupported Codex edge-case category: {category}")
+    raise ValueError(f"unsupported edge-case category: {category}")
 
 
-def _run_edge_cases(manifest: dict[str, Any]) -> list[CodexEdgeCaseResult]:
-    results: list[CodexEdgeCaseResult] = []
+def _run_validations(manifest: dict[str, Any]) -> list[EdgeCaseValidationResult]:
+    results: list[EdgeCaseValidationResult] = []
     for raw_path in manifest["edge_cases"]:
         document = _read_json(_catalog_path(raw_path))
         actual = _edge_actual(document)
         expected = document["expected"]
         results.append(
-            CodexEdgeCaseResult(
+            EdgeCaseValidationResult(
                 edge_case_id=document["edge_case_id"],
                 category=document["category"],
                 passed=actual == expected,
@@ -891,11 +895,11 @@ def _run_edge_cases(manifest: dict[str, Any]) -> list[CodexEdgeCaseResult]:
 # ---------------------------------------------------------------------------
 
 
-def run_codex_demo() -> CodexDemoResult:
-    """Execute the isolated Codex catalog workflow and return its evaluation."""
+def run_edge_cases_demo() -> EdgeCasesDemoResult:
+    """Execute the isolated edge-cases catalog and return its evaluation."""
     manifest = _read_json(_MANIFEST)
     promoted_skill: Optional[Skill] = None
-    scenarios: list[CodexScenarioResult] = []
+    scenarios: list[EdgeCasesScenarioResult] = []
     oracles: dict[str, dict[str, Any]] = {}
 
     for entry in manifest["core_scenarios"]:
@@ -911,24 +915,24 @@ def run_codex_demo() -> CodexDemoResult:
         scenarios[0], scenarios[1], oracles[scenarios[1].scenario_id]
     )
     security = _run_security(manifest)
-    edge_cases = _run_edge_cases(manifest)
+    validations = _run_validations(manifest)
     passed = (
         all(item.evaluation and item.evaluation.passed for item in scenarios)
         and comparison.passed
         and security.passed
-        and all(item.passed for item in edge_cases)
+        and all(item.passed for item in validations)
     )
-    return CodexDemoResult(
+    return EdgeCasesDemoResult(
         catalog_id=manifest["catalog_id"],
         isolation={
             "uses_existing_fixture_registry": False,
             "writes_core_demo_state": False,
-            "uses_only_codex_manifest_paths": True,
+            "uses_only_edge_cases_manifest_paths": True,
             "oracle_separated_from_runtime": True,
         },
         scenarios=scenarios,
         comparison=comparison,
         security=security,
-        edge_cases=edge_cases,
+        validations=validations,
         passed=passed,
     )

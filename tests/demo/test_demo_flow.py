@@ -45,14 +45,14 @@ def test_shared_dashboard_run_executes_both_fixture_workflows(demo_client):
     # compatibility, while the isolated fixture result is deliberately nested.
     assert summary["incident_one_cycle_id"].startswith("cycle_")
     assert summary["incident_two_cycle_id"].startswith("cycle_")
-    assert summary["codex"]["fixture_root"] == "fixtures/codex"
-    assert summary["codex"]["passed"] is True
-    assert len(summary["codex"]["scenarios"]) == 2
+    assert summary["edge_cases"]["fixture_root"] == "fixtures/edge_cases"
+    assert summary["edge_cases"]["passed"] is True
+    assert len(summary["edge_cases"]["scenarios"]) == 2
 
     state = demo_client.get("/api/v1/demo/state").json()
     assert state["has_run"] is True
-    assert state["codex"]["passed"] is True
-    assert len(state["codex"]["edge_cases"]) == 8
+    assert state["edge_cases"]["passed"] is True
+    assert len(state["edge_cases"]["validations"]) == 8
 
 
 def test_autonomy_and_plan_visible_from_persisted_state(demo_client):

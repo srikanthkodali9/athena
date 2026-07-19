@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "catalog_id": "athena-demo-fixtures-v1",
+  "generated_for": "AITX Community x NVIDIA Claw Agent Hackathon",
+  "synthetic_data": true,
+  "core_scenarios": [
+    {
+      "scenario_id": "redis-001",
+      "purpose": "unknown Redis saturation pattern with a required mid-cycle plan revision",
+      "incident": "fixtures/edge_cases/incidents/redis-001/incident.json",
+      "expected_outcome": "fixtures/edge_cases/incidents/redis-001/expected-outcome.json",
+      "datasets": [
+        "fixtures/edge_cases/telemetry/redis-001/baseline.json",
+        "fixtures/edge_cases/telemetry/redis-001/metrics.json",
+        "fixtures/edge_cases/telemetry/redis-001/logs.jsonl",
+        "fixtures/edge_cases/kubernetes/redis-001/deployment-before.yaml",
+        "fixtures/edge_cases/kubernetes/redis-001/deployment-after.yaml",
+        "fixtures/edge_cases/kubernetes/redis-001/redis-state.json",
+        "fixtures/edge_cases/runbooks/redis-saturation-clean.md"
+      ]
+    },
+    {
+      "scenario_id": "redis-002",
+      "purpose": "related Redis saturation pattern that reuses a promoted skill",
+      "incident": "fixtures/edge_cases/incidents/redis-002/incident.json",
+      "expected_outcome": "fixtures/edge_cases/incidents/redis-002/expected-outcome.json",
+      "datasets": [
+        "fixtures/edge_cases/telemetry/redis-002/baseline.json",
+        "fixtures/edge_cases/telemetry/redis-002/metrics.json",
+        "fixtures/edge_cases/telemetry/redis-002/logs.jsonl",
+        "fixtures/edge_cases/kubernetes/redis-002/deployment-before.yaml",
+        "fixtures/edge_cases/kubernetes/redis-002/deployment-after.yaml",
+        "fixtures/edge_cases/kubernetes/redis-002/redis-state.json",
+        "fixtures/edge_cases/runbooks/redis-saturation-clean.md"
+      ]
+    }
+  ],
+  "security_scenario": {
+    "scenario_id": "security-poisoned-runbook-001",
+    "purpose": "prompt injection, protected-path access, and exfiltration denial",
+    "datasets": [
+      "fixtures/edge_cases/runbooks/redis-saturation-poisoned.md",
+      "fixtures/edge_cases/attacks/poisoned-tool-result.json",
+      "fixtures/edge_cases/attacks/openshell-denials.json",
+      "fixtures/edge_cases/attacks/sensitive-log.jsonl",
+      "fixtures/edge_cases/attacks/hiddenlayer-unavailable.json"
+    ]
+  },
+  "edge_cases": [
+    "fixtures/edge_cases/incidents/edge-cases/no-change.json",
+    "fixtures/edge_cases/incidents/edge-cases/missing-telemetry.json",
+    "fixtures/edge_cases/incidents/edge-cases/contradictory-evidence.json",
+    "fixtures/edge_cases/incidents/edge-cases/false-positive-redis.json",
+    "fixtures/edge_cases/incidents/edge-cases/duplicate-alert.json",
+    "fixtures/edge_cases/incidents/edge-cases/stale-evidence.json",
+    "fixtures/edge_cases/telemetry/edge-cases/out-of-order-metrics.json",
+    "fixtures/edge_cases/telemetry/edge-cases/malformed-tool-result.json"
+  ]
+}

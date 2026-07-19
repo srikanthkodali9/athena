@@ -37,7 +37,7 @@ The edge-case set covers:
 ## Directory layout
 
 ```text
-fixtures/codex/
+fixtures/edge_cases/
 ├── manifest.json
 ├── schemas/
 ├── incidents/
@@ -72,14 +72,14 @@ python3 scripts/validate_fixtures.py
 python3 -m unittest discover -s tests/demo -p 'test_*.py'
 ```
 
-Run the isolated Codex workflow demo (it does not use or mutate the existing
+Run the isolated edge-cases workflow demo (it does not use or mutate the existing
 `fixtures/*` heartbeat demo):
 
 ```bash
-./scripts/run_codex_demo.sh
-./scripts/run_codex_demo.sh --json
+./scripts/run_edge_cases_demo.sh
+./scripts/run_edge_cases_demo.sh --json
 ```
 
 With the Athena demo server running, **Run both demos** executes this workflow
 alongside the standard demo and renders it in a separate dashboard section. To
-run only this workflow, use `POST /api/v1/demo/codex/run`.
+run only this workflow, use `POST /api/v1/demo/edge-cases/run`.

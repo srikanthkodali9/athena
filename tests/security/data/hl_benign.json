@@ -1,0 +1,14 @@
+{
+  "fixture_kind": "sanitized_hiddenlayer_response",
+  "scenario": "benign investigation prompt with a lone prompt-injection false positive",
+  "analysis": [
+    {
+      "name": "prompt_injection",
+      "detected": true,
+      "phase": "input",
+      "findings": {
+        "probabilities": [1.0]
+      }
+    }
+  ]
+}

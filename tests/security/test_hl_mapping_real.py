@@ -1,8 +1,9 @@
-"""Mapping tests against REAL captured HiddenLayer responses.
+"""Mapping tests against sanitized HiddenLayer response-shape fixtures.
 
-Fixtures in ``tests/security/data/hl_*.json`` are real ``interactions.analyze``
-responses captured with live OAuth credentials (our own test content only, no
-secrets). These are the regression guards for the evidence-based gating policy.
+Fixtures in ``tests/security/data/hl_*.json`` preserve the detector fields and
+outcomes documented from live ``interactions.analyze`` verification, without
+credentials, raw prompts, or secrets. They guard the evidence-based gating
+policy deterministically and do not replace an opt-in live adapter smoke test.
 """
 
 from __future__ import annotations

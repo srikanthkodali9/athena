@@ -56,6 +56,13 @@ from app.heartbeat.change_detection import detect_changes
 from app.learning.retrieval import SkillRetriever
 from app.learning.service import LearningService
 from app.memory.store import CycleStore
+from app.policies.models import PolicyEffect, PolicyRequest
+from app.security.contracts import SecurityAction
+from app.security.inference import (
+    SecurityBoundaryDenied,
+    ensure_secured_inference,
+)
+from app.security.openshell import OpenShellEngine
 from app.tools import fixtures as tool_fixtures
 from app.tools.registry import ToolRegistry
 
@@ -87,6 +94,10 @@ class FixtureNotAllowed(HeartbeatError):
 
 class UnknownFixture(HeartbeatError):
     """Requested fixture is not known to the tool registry (422)."""
+
+
+class CapabilityDenied(HeartbeatError):
+    """OpenShell denied or approval-gated a requested capability."""
 
 
 def new_cycle_id() -> str:
@@ -227,15 +238,32 @@ class _Step:
     fn: StepFn
 
 
+@dataclass(frozen=True)
+class _ToolCapability:
+    role: str
+    action: str
+
+
 class HeartbeatService:
     """Shared command handler for manual and periodic heartbeats."""
 
     # Per-step wall-clock budget. Generous enough for a slow live Nemotron call
-    # (observed up to ~35s) but bounded so a hung/never-returning streaming call
+    # plus its single bounded repair attempt, while still cancelling a hung call
     # can never freeze a cycle indefinitely — it is cancelled and the cycle ends
     # in a degraded CONTAIN state. Complements any per-call timeout in the
     # inference adapter.
-    _STEP_TIMEOUT_SECONDS: float = 90.0
+    _STEP_TIMEOUT_SECONDS: float = 180.0
+
+    _TOOL_CAPABILITIES: dict[str, _ToolCapability] = {
+        "query_metrics": _ToolCapability("observability", "read_telemetry"),
+        "query_logs": _ToolCapability("observability", "read_telemetry"),
+        "diff_deployment": _ToolCapability("platform", "read_kubernetes"),
+        "read_repository": _ToolCapability("platform", "read_repository"),
+        "inspect_dependency": _ToolCapability("platform", "read_kubernetes"),
+        "calculate_blast_radius": _ToolCapability("platform", "read_kubernetes"),
+        "security_scan": _ToolCapability("athena", "call_security_endpoint"),
+        "search_memory": _ToolCapability("historian", "read_memory_validated"),
+    }
 
     def __init__(
         self,
@@ -247,9 +275,12 @@ class HeartbeatService:
         settings: Settings,
         learning: "LearningService | None" = None,
         retriever: "SkillRetriever | None" = None,
+        openshell: "OpenShellEngine | None" = None,
     ) -> None:
         self._store = store
-        self._inference = inference
+        # Mandatory, idempotent model boundary: every caller (including
+        # specialist and repair paths) receives the same secured port.
+        self._inference = ensure_secured_inference(inference, security)
         self._security = security
         self._registry = registry
         self._settings = settings
@@ -258,6 +289,7 @@ class HeartbeatService:
         # ``retriever`` lets a later incident reuse a promoted skill (FR-14).
         self._learning = learning
         self._retriever = retriever
+        self._openshell = openshell
 
     # -- Command intake ----------------------------------------------------
 
@@ -491,7 +523,9 @@ class HeartbeatService:
         s = self._settings
 
         # Nemotron-Super produces the bounded plan (via the strategic port).
-        chat = await self._infer("strategic", "Produce a bounded investigation plan.", cycle)
+        chat = await self._infer(
+            "strategic", "Produce a bounded investigation plan.", cycle
+        )
 
         half_tokens = max(1, s.max_total_tokens // 4)
         plan = InvestigationPlan(
@@ -534,7 +568,7 @@ class HeartbeatService:
         # known_false_leads, so the investigation may legitimately run leaner
         # (skip mid-cycle re-derivation and the Round-2 specialist) — principled
         # reuse of validated procedural knowledge, not shortcutting.
-        reuse = self._match_promoted_skill(cycle.fixture)
+        reuse = await self._match_promoted_skill(cycle.fixture, cycle)
         if reuse is not None:
             cycle.reused_skill_id, cycle.reused_skill_version = reuse
 
@@ -544,7 +578,9 @@ class HeartbeatService:
             "reused_skill_id": cycle.reused_skill_id,
         }
 
-    def _match_promoted_skill(self, fixture: Optional[str]) -> Optional[tuple[str, str]]:
+    async def _match_promoted_skill(
+        self, fixture: Optional[str], cycle: Cycle
+    ) -> Optional[tuple[str, str]]:
         """Return (skill_id, version) of a promoted skill matching the incident
         telemetry, or None. Reads real fixture metrics — never fabricated."""
         if self._retriever is None or not fixture:
@@ -555,7 +591,27 @@ class HeartbeatService:
         match = self._retriever.match(signals, preconditions_met=preconditions)
         if match is None:
             return None
-        skill, _citation = match
+        skill, citation = match
+        decision = await self._inspect(
+            InspectionStage.RETRIEVED_CONTENT,
+            producer=f"skill:{skill.skill_id}@{skill.version}",
+            consumer="investigation_planner",
+            content={
+                "skill_id": skill.skill_id,
+                "version": skill.version,
+                "title": skill.title,
+                "objective": skill.objective,
+                "triggers": skill.triggers,
+                "procedure": skill.procedure,
+                "known_false_leads": citation.known_false_leads,
+            },
+            cycle=cycle,
+        )
+        if decision.action is not SecurityAction.ALLOW:
+            cycle.recovery_actions.append(
+                f"retrieved skill {skill.skill_id}@{skill.version} excluded by security"
+            )
+            return None
         return skill.skill_id, skill.version
 
     async def _step_round1_tools(self, ctx: _Context) -> dict:
@@ -564,25 +620,73 @@ class HeartbeatService:
         params = {"fixture": cycle.fixture}
         registered: list[str] = []
         for tool in ("query_metrics", "diff_deployment"):
+            if ctx.plan is not None and cycle.metrics.tool_calls >= ctx.plan.max_tool_calls:
+                raise CapabilityDenied("investigation tool-call budget exhausted")
+
+            self._authorize_tool(tool, cycle)
+            call_decision = await self._inspect(
+                InspectionStage.TOOL_CALL,
+                producer="orchestrator",
+                consumer=tool,
+                content={"tool": tool, "params": params},
+                cycle=cycle,
+            )
+            if call_decision.action is not SecurityAction.ALLOW:
+                raise SecurityBoundaryDenied(
+                    f"tool call {tool} rejected at TOOL_CALL boundary "
+                    f"({call_decision.action.value})"
+                )
+
             result = self._registry.call(tool, params)
             cycle.metrics.tool_calls += 1
-            if result.status != "success":
-                continue
             # Tool results are untrusted until inspected (FR6, FR10-02).
-            await self._inspect(
+            result_decision = await self._inspect(
                 InspectionStage.TOOL_RESULT,
                 producer=tool,
                 consumer="evidence_registry",
                 content=result.model_dump(mode="json"),
                 cycle=cycle,
             )
+            if not result_decision.is_usable():
+                raise SecurityBoundaryDenied(
+                    f"tool result {tool} rejected before evidence registration "
+                    f"({result_decision.action.value})"
+                )
+            if result_decision.safe_content is not None:
+                try:
+                    result = result.model_validate_json(result_decision.safe_content)
+                except Exception as exc:
+                    raise SecurityBoundaryDenied(
+                        f"tool result {tool} could not be reconstructed after inspection"
+                    ) from exc
+            if result.status != "success":
+                continue
             for ev in result.evidence:
                 self._store.register_evidence(ev, cycle.cycle_id, produced_by=tool)
-                ctx.evidence.append(ev)
                 if ev.id not in cycle.evidence_ids:
                     cycle.evidence_ids.append(ev.id)
+                    ctx.evidence.append(ev)
                 registered.append(ev.id)
         return {"evidence_ids": registered}
+
+    def _authorize_tool(self, tool: str, cycle: Cycle) -> None:
+        """Apply OpenShell independently before an approved tool can execute."""
+        if self._openshell is None:
+            return
+        capability = self._TOOL_CAPABILITIES.get(tool)
+        if capability is None:
+            raise CapabilityDenied(f"tool {tool} has no declared capability mapping")
+        decision = self._openshell.evaluate(
+            PolicyRequest(
+                role=capability.role,
+                action=capability.action,
+                cycle_id=cycle.cycle_id,
+            )
+        )
+        if decision.effect is not PolicyEffect.ALLOW:
+            raise CapabilityDenied(
+                f"OpenShell {decision.effect.value} for {tool}: {decision.category}"
+            )
 
     async def _step_round1_obs(self, ctx: _Context) -> dict:
         # Round 1: real Observability specialist over the evidence collected by
@@ -673,7 +777,9 @@ class HeartbeatService:
         cycle = ctx.cycle
         cycle.state = CycleState.SYNTHESIZING
         # Strategic synthesis + adversarial critic (both Nemotron-Super).
-        await self._infer("strategic", "Synthesize evidence and resolve contradictions.", cycle)
+        await self._infer(
+            "strategic", "Synthesize evidence and resolve contradictions.", cycle
+        )
         await self._infer("critic", "Adversarially critique the conclusion.", cycle)
 
         cited = list(cycle.evidence_ids)
@@ -692,7 +798,9 @@ class HeartbeatService:
         # Decision from synthesis confidence vs stop condition.
         threshold = ctx.plan.stop_conditions.root_cause_confidence if ctx.plan else 0.85
         cycle.decision = (
-            Decision.ESCALATE if synthesis.confidence >= threshold else Decision.INVESTIGATE
+            Decision.ESCALATE
+            if synthesis.confidence >= threshold
+            else Decision.INVESTIGATE
         )
         cycle.state_before = cycle.state
         cycle.state = CycleState.PERSISTING
@@ -710,20 +818,25 @@ class HeartbeatService:
     }
 
     async def _infer(self, role: str, prompt: str, cycle: Cycle):
-        await self._inspect(
-            InspectionStage.MODEL_PROMPT,
-            producer="orchestrator",
-            consumer=role,
-            content=prompt,
-            cycle=cycle,
-        )
         request = ChatRequest(
             messages=[ChatMessage(role="user", content=prompt)],
             model_role=role,
             max_tokens=self._INFER_MAX_TOKENS.get(role, 1024),
+            cycle_id=cycle.cycle_id,
+            security_producer="orchestrator",
+            security_consumer="orchestrator",
         )
-        result = await self._inference.complete(request)
-        cycle.metrics.model_calls += 1
+        inspections_before = self._inference.inspection_count
+        try:
+            result = await self._inference.complete(request)
+        except SecurityBoundaryDenied as exc:
+            cycle.metrics.model_calls += exc.inference_attempts
+            raise
+        finally:
+            cycle.metrics.security_inspections += (
+                self._inference.inspection_count - inspections_before
+            )
+        cycle.metrics.model_calls += result.inference_attempts
         cycle.metrics.total_tokens += result.total_tokens
         # Record per-inference telemetry for the metrics route (FR4-04, FR12-06).
         cycle.metrics.inferences.append(
@@ -757,41 +870,62 @@ class HeartbeatService:
         """Run one real Council specialist, preserving the boundaries and metrics
         the previous placeholder path provided (FR5).
 
-        Order: inspect MODEL_PROMPT (the question) -> run the specialist over the
-        round-1 evidence -> record exactly one model call + per-inference metric
-        -> inspect the SPECIALIST_RESPONSE -> append the finding. Keeping the
-        per-specialist model_call count at 1 preserves the cycle's exact call
-        budget (plan+obs+midcycle+platform+synth+critic = 6).
+        The secured inference port inspects the fully rendered prompt and every
+        raw response/repair attempt. This method records metrics, then inspects
+        the final structured finding as a separate trust transition before it
+        enters synthesis.
         """
         cycle = ctx.cycle
-        # 1. Inspect the outbound specialist question before the model sees it.
-        await self._inspect(
-            InspectionStage.MODEL_PROMPT,
-            producer="orchestrator",
-            consumer=role,
-            content=question,
-            cycle=cycle,
-        )
-        # 2. Real specialist call over the allowlisted round-1 evidence.
+        # 1. Real specialist call over allowlisted evidence. Its fully rendered
+        # prompt crosses the secured inference boundary inside Specialist.run.
         specialist = specialist_cls(self._inference)
-        outcome = await specialist.run(question, ctx.evidence, max_tokens=max_tokens)
+        inspections_before = self._inference.inspection_count
+        try:
+            outcome = await specialist.run(
+                question,
+                ctx.evidence,
+                max_tokens=max_tokens,
+                cycle_id=cycle.cycle_id,
+            )
+        except SecurityBoundaryDenied as exc:
+            cycle.metrics.model_calls += exc.inference_attempts
+            raise
+        finally:
+            cycle.metrics.security_inspections += (
+                self._inference.inspection_count - inspections_before
+            )
 
-        # 3. Record metrics exactly like _infer (one model call per specialist).
-        cycle.metrics.model_calls += 1
+        # 2. Record all actual attempts, including a bounded repair when used.
+        cycle.metrics.model_calls += outcome.inference_attempts
         metric = _specialist_inference_metric(role, outcome)
         cycle.metrics.total_tokens += metric.total_tokens
         cycle.metrics.inferences.append(metric)
 
-        # 4. Inspect the specialist's response before it feeds synthesis.
-        await self._inspect(
+        # 3. Inspect the parsed/allowlisted finding before it feeds synthesis.
+        response_decision = await self._inspect(
             InspectionStage.SPECIALIST_RESPONSE,
             producer=role,
             consumer="synthesizer",
-            content=outcome.finding.interpretation or "",
+            content=outcome.finding.model_dump_json(),
             cycle=cycle,
         )
+        if not response_decision.is_usable() or response_decision.safe_content is None:
+            raise SecurityBoundaryDenied(
+                f"specialist response for {role} rejected "
+                f"({response_decision.action.value})"
+            )
+        try:
+            outcome.finding = Finding.model_validate_json(response_decision.safe_content)
+        except Exception as exc:
+            raise SecurityBoundaryDenied(
+                f"specialist response for {role} invalid after inspection"
+            ) from exc
+        if not set(outcome.finding.cited_evidence_ids).issubset(cycle.evidence_ids):
+            raise SecurityBoundaryDenied(
+                f"specialist response for {role} gained unregistered evidence citations"
+            )
 
-        # 5. Commit the structured, evidence-backed finding.
+        # 4. Commit the structured, evidence-backed finding.
         cycle.findings.append(outcome.finding)
         cycle.metrics.specialists_invoked += 1
         return outcome

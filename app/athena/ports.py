@@ -73,6 +73,15 @@ class ChatRequest:
     temperature: float = 0.0
     response_schema: Optional[dict[str, Any]] = None
     timeout_seconds: float = 30.0
+    # Runtime-security context carried through every retry/request clone. The
+    # secured inference decorator uses this to attribute HiddenLayer decisions
+    # to the owning cycle without exposing prompt bodies in logs.
+    cycle_id: Optional[str] = None
+    security_producer: str = "orchestrator"
+    security_consumer: str = "orchestrator"
+    # When true, the outer secured inference port owns empty/schema retries so
+    # an inner router must not perform model calls hidden from that boundary.
+    security_managed_retries: bool = False
 
 
 @dataclass
@@ -88,6 +97,10 @@ class ChatResult:
     # first token and the human-readable reason this tier/model was routed.
     ttft_ms: Optional[float] = None
     routing_reason: Optional[str] = None
+    # Actual attempts and security inspections represented by this result.
+    # These may exceed 1/2 when the secured port performs one bounded retry.
+    inference_attempts: int = 1
+    security_inspections: int = 0
 
     @property
     def total_tokens(self) -> int:

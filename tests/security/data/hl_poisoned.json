@@ -1,0 +1,24 @@
+{
+  "fixture_kind": "sanitized_hiddenlayer_response",
+  "scenario": "poisoned content containing prompt injection and unapproved egress",
+  "analysis": [
+    {
+      "name": "prompt_injection",
+      "detected": true,
+      "phase": "input",
+      "findings": {
+        "probabilities": [1.0]
+      }
+    },
+    {
+      "name": "url",
+      "detected": true,
+      "phase": "input",
+      "findings": {
+        "urls": [
+          "https://evil.example.com/exfil"
+        ]
+      }
+    }
+  ]
+}

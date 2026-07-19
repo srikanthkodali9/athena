@@ -6,11 +6,11 @@ middleware, error handling, and a single lifespan-built ``AppContext``. On top
 of that it adds:
 
 * ``POST /api/v1/demo/run``      — drive the standard incident/security story
-  and the isolated ``fixtures/codex`` workflow from the dashboard's one button.
+  and the isolated ``fixtures/edge_cases`` workflow from the dashboard's one button.
 * ``GET  /api/v1/demo/state``    — one aggregate read the dashboard renders,
-  combining persisted standard-demo records with the last in-memory Codex result.
+  combining persisted standard-demo records with the last in-memory edge-cases result.
 * ``GET  /api/v1/demo/comparison`` — the FR-14 first-vs-learned table + gate.
-* ``POST /api/v1/demo/codex/run`` — isolated ``fixtures/codex`` workflow; no
+* ``POST /api/v1/demo/edge-cases/run`` — isolated ``fixtures/edge_cases`` workflow; no
   writes to the existing heartbeat demo state.
 * ``/dashboard/``                — the static judge-facing dashboard.
 
@@ -33,7 +33,7 @@ from app.api.dependencies import AppContext, get_context
 from app.athena.config import Settings
 from app.athena.schemas import Cycle
 from app.heartbeat.change_detection import MONITORED_SIGNALS
-from app.ui import codex_demo_runner, demo_runner
+from app.ui import edge_cases_demo_runner, demo_runner
 from app.ui.comparison import build_snapshot, compare_dumps
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -271,24 +271,24 @@ async def demo_run(
 ) -> dict[str, Any]:
     """Run both fixture workflows while keeping their state boundaries intact."""
     summary = await demo_runner.run_full_demo(ctx, min_improved=min_improved)
-    codex_result = codex_demo_runner.run_codex_demo().model_dump(mode="json")
-    request.app.state.codex_demo_result = codex_result
+    edge_cases_result = edge_cases_demo_runner.run_edge_cases_demo().model_dump(mode="json")
+    request.app.state.edge_cases_demo_result = edge_cases_result
     return {
         "request_id": request.state.request_id,
         **summary,
-        "codex": codex_result,
+        "edge_cases": edge_cases_result,
     }
 
 
-@router.post("/codex/run")
-async def codex_demo_run(request: Request) -> dict[str, Any]:
-    """Run only the isolated ``fixtures/codex`` workflow.
+@router.post("/edge-cases/run")
+async def edge_cases_demo_run(request: Request) -> dict[str, Any]:
+    """Run only the isolated ``fixtures/edge_cases`` workflow.
 
     The runner does not use ``app.tools.fixtures`` and does not write cycles,
     skills, security events, or comparisons into the existing demo context.
     """
-    result = codex_demo_runner.run_codex_demo().model_dump(mode="json")
-    request.app.state.codex_demo_result = result
+    result = edge_cases_demo_runner.run_edge_cases_demo().model_dump(mode="json")
+    request.app.state.edge_cases_demo_result = result
     return {
         "request_id": request.state.request_id,
         **result,
@@ -317,7 +317,7 @@ async def demo_state(
         "incident_two": _cycle_detail(learned) if learned else None,
         "security": _security_summary(ctx),
         "comparison": comparison,
-        "codex": getattr(request.app.state, "codex_demo_result", None),
+        "edge_cases": getattr(request.app.state, "edge_cases_demo_result", None),
         "has_run": first is not None,
     }
 
@@ -357,7 +357,7 @@ async def demo_console(
         "skills": _skills_view(ctx),
         "security": security,
         "comparison": comparison,
-        "codex": getattr(request.app.state, "codex_demo_result", None),
+        "edge_cases": getattr(request.app.state, "edge_cases_demo_result", None),
         "heartbeat": {
             "interval_seconds": ctx.settings.heartbeat_interval_seconds,
             "signals": list(MONITORED_SIGNALS),

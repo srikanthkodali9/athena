@@ -13,6 +13,12 @@ from app.heartbeat.lifecycle import (
 )
 
 
+def test_step_timeout_allows_live_inference_and_repair_window():
+    from app.heartbeat.lifecycle import HeartbeatService
+
+    assert HeartbeatService._STEP_TIMEOUT_SECONDS == 180.0
+
+
 async def test_no_change_wait_path_makes_no_model_calls(harness):
     """A heartbeat with no fixture is a no-change WAIT — zero model calls."""
     cycle, created = harness.service.trigger(HeartbeatCommand())

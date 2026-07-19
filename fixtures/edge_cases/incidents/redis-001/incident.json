@@ -46,10 +46,10 @@
       ],
       "max_tool_calls": 5,
       "allowed_datasets": [
-        "fixtures/codex/telemetry/redis-001/metrics.json",
-        "fixtures/codex/telemetry/redis-001/logs.jsonl",
-        "fixtures/codex/kubernetes/redis-001/deployment-before.yaml",
-        "fixtures/codex/kubernetes/redis-001/deployment-after.yaml"
+        "fixtures/edge_cases/telemetry/redis-001/metrics.json",
+        "fixtures/edge_cases/telemetry/redis-001/logs.jsonl",
+        "fixtures/edge_cases/kubernetes/redis-001/deployment-before.yaml",
+        "fixtures/edge_cases/kubernetes/redis-001/deployment-after.yaml"
       ]
     },
     "mid_cycle": {
@@ -64,9 +64,9 @@
       "specialist": "platform",
       "question_source": "mid_cycle.confirmed_or_revised_platform_question",
       "allowed_datasets": [
-        "fixtures/codex/kubernetes/redis-001/deployment-before.yaml",
-        "fixtures/codex/kubernetes/redis-001/deployment-after.yaml",
-        "fixtures/codex/kubernetes/redis-001/redis-state.json"
+        "fixtures/edge_cases/kubernetes/redis-001/deployment-before.yaml",
+        "fixtures/edge_cases/kubernetes/redis-001/deployment-after.yaml",
+        "fixtures/edge_cases/kubernetes/redis-001/redis-state.json"
       ]
     }
   },
