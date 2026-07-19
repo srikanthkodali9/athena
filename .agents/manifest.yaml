@@ -42,6 +42,7 @@ agents:
       - app/security/
       - app/policies/
       - policies/
+      - fixtures/codex/attacks/
       - fixtures/attacks/
       - tests/security/
     first_wave: 1
@@ -83,6 +84,10 @@ agents:
     mode: write
     owns:
       - app/ui/
+      - fixtures/codex/incidents/
+      - fixtures/codex/telemetry/
+      - fixtures/codex/kubernetes/
+      - fixtures/codex/runbooks/
       - fixtures/incidents/
       - fixtures/telemetry/
       - fixtures/kubernetes/

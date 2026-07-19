@@ -1,0 +1,3 @@
+# Generated runbook proposals are runtime state.
+*.diff
+!.gitkeep

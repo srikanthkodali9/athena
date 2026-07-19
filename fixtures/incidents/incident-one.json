@@ -1,0 +1,101 @@
+{
+  "fixture": "redis-incident-001",
+  "title": "Incident One — unknown Redis connection saturation (forces mid-cycle REVISE_PLAN)",
+  "prd_ref": "Athena_SRE_Agent_PRD_and_Build_Plan.md §21.1",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "detected_at": "2026-07-18T09:42:00Z",
+  "service": "api",
+  "change_signal": {
+    "source": "prometheus",
+    "kind": "metric_threshold_breach",
+    "summary": "API 5xx ratio rose from 0.01 to 0.18; redis clients near limit.",
+    "security_sensitive": false
+  },
+  "metrics": [
+    {
+      "id": "ev_metric-api-5xx-19",
+      "type": "metric",
+      "source": "prometheus",
+      "provenance": {
+        "query": "rate(http_requests_total{status=~\"5..\"}[5m])",
+        "window": "5m",
+        "service": "api"
+      },
+      "data": {"before": 0.01, "value": 0.18, "unit": "ratio"}
+    },
+    {
+      "id": "ev_metric-redis-conn-20",
+      "type": "metric",
+      "source": "prometheus",
+      "provenance": {
+        "query": "redis_connected_clients",
+        "window": "5m",
+        "service": "redis"
+      },
+      "data": {"before": 240, "value": 9900, "limit": 10000, "unit": "count"}
+    }
+  ],
+  "deployment_diff": {
+    "id": "ev_diff-api-deploy-7",
+    "type": "diff",
+    "source": "kubernetes",
+    "provenance": {
+      "object": "deployment/api",
+      "from_revision": "api-1180",
+      "to_revision": "api-1181",
+      "committed_at": "2026-07-18T09:41:00Z"
+    },
+    "data": {
+      "changed": [
+        {
+          "field": "spec.template.spec.containers[0].env.REDIS_POOL_MAX",
+          "from": "50",
+          "to": "500"
+        }
+      ],
+      "image_changed": false
+    }
+  },
+  "mid_cycle": {
+    "expected_decision": "REVISE_PLAN",
+    "revision_trigger": "redis_connection_saturation",
+    "trigger_evidence_id": "ev_metric-redis-conn-20",
+    "trigger_rule": "a redis metric whose value >= 0.9 * limit (9900/10000 = 0.99) proves the 5xx errors trace specifically to Redis connection rejection",
+    "original_platform_question": "What infrastructure change explains the symptom?",
+    "revised_platform_question": "Which deployment change altered the Redis connection pool configuration (REDIS_POOL_MAX)?",
+    "note": "This revision is EVIDENCE-DRIVEN, not security-driven. See fixtures/README.md for the exact app/heartbeat/lifecycle.py::_step_mid_cycle patch the coordinator must apply; a fixture alone cannot trigger it because the current lifecycle only revises on change_class == 'security_sensitive'."
+  },
+  "ground_truth": {
+    "root_cause": "Deployment api-1181 raised REDIS_POOL_MAX from 50 to 500 per replica; aggregate client connections saturated the Redis 10000-connection limit, causing connection rejection and API 5xx errors.",
+    "expected_evidence_ids": [
+      "ev_metric-api-5xx-19",
+      "ev_metric-redis-conn-20",
+      "ev_diff-api-deploy-7"
+    ],
+    "expected_evidence_count": 3,
+    "containment": "Roll deployment/api back to api-1180 (REDIS_POOL_MAX=50) or lower the pool ceiling; verify redis_connected_clients falls well below 10000.",
+    "expected_confidence_min": 0.85,
+    "expected_decision": "ESCALATE"
+  },
+  "expected_skill": {
+    "skill_id_hint": "skill_redis_pool_saturation",
+    "domain": "redis",
+    "trigger": {
+      "symptoms": ["api_5xx_increase", "redis_connected_clients_near_limit"],
+      "recent_change_kind": "deployment_env_change",
+      "changed_env_key": "REDIS_POOL_MAX"
+    },
+    "winning_hypothesis_chain": [
+      "api_5xx_increase observed",
+      "redis_connected_clients at/near limit (connection rejection)",
+      "recent deployment diff raised REDIS_POOL_MAX",
+      "pool ceiling * replica count exceeded Redis maxclients -> saturation"
+    ],
+    "known_false_leads": [
+      "generic-service-infrastructure-regression (rejected mid-cycle: errors trace specifically to Redis connection rejection, not general infra)",
+      "container-image-regression (rejected: image_changed == false in the deployment diff)"
+    ],
+    "note": "Fields provided so recursive_learning_expert can align the candidate-skill trigger and known_false_leads. known_false_leads[0] is exactly the hypothesis REVISE_PLAN discards."
+  }
+}

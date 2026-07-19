@@ -20,6 +20,8 @@ venv/
 # Local runtime state
 .athena/
 data/
+!tests/security/data/
+!tests/security/data/*.json
 logs/
 *.db
 *.sqlite

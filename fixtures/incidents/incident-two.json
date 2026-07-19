@@ -1,0 +1,82 @@
+{
+  "fixture": "redis-incident-002",
+  "title": "Incident Two — related Redis pattern in another service (reuses the promoted skill)",
+  "prd_ref": "Athena_SRE_Agent_PRD_and_Build_Plan.md §21.2",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "detected_at": "2026-07-19T14:03:00Z",
+  "service": "checkout",
+  "change_signal": {
+    "source": "prometheus",
+    "kind": "metric_threshold_breach",
+    "summary": "Checkout 5xx ratio rose from 0.01 to 0.09 after a Redis pool change.",
+    "security_sensitive": false
+  },
+  "metrics": [
+    {
+      "id": "ev_metric-checkout-5xx-31",
+      "type": "metric",
+      "source": "prometheus",
+      "provenance": {
+        "query": "rate(http_requests_total{status=~\"5..\",service=\"checkout\"}[5m])",
+        "window": "5m",
+        "service": "checkout"
+      },
+      "data": {"before": 0.01, "value": 0.09, "unit": "ratio"}
+    },
+    {
+      "id": "ev_metric-redis-conn-32",
+      "type": "metric",
+      "source": "prometheus",
+      "provenance": {
+        "query": "redis_connected_clients",
+        "window": "5m",
+        "service": "redis"
+      },
+      "data": {"before": 180, "value": 7300, "limit": 8000, "unit": "count"}
+    }
+  ],
+  "deployment_diff": {
+    "id": "ev_diff-checkout-deploy-9",
+    "type": "diff",
+    "source": "kubernetes",
+    "provenance": {
+      "object": "deployment/checkout",
+      "from_revision": "checkout-1204",
+      "to_revision": "checkout-1205",
+      "committed_at": "2026-07-19T14:02:00Z"
+    },
+    "data": {
+      "changed": [
+        {
+          "field": "spec.template.spec.containers[0].env.REDIS_POOL_MAX",
+          "from": "120",
+          "to": "600"
+        }
+      ],
+      "image_changed": false
+    }
+  },
+  "ground_truth": {
+    "root_cause": "Deployment checkout-1205 raised REDIS_POOL_MAX from 120 to 600; the same pool-saturation pattern as incident one, in a different service.",
+    "expected_evidence_ids": [
+      "ev_metric-checkout-5xx-31",
+      "ev_metric-redis-conn-32",
+      "ev_diff-checkout-deploy-9"
+    ],
+    "containment": "Roll deployment/checkout back to checkout-1204 or lower REDIS_POOL_MAX.",
+    "expected_decision": "ESCALATE"
+  },
+  "reuses_skill": {
+    "skill_id_hint": "skill_redis_pool_saturation",
+    "matching_signals": ["api_5xx_increase", "redis_connected_clients_near_limit", "REDIS_POOL_MAX deployment env change"],
+    "differing_signals": ["service = checkout (was api)", "redis limit 8000 (was 10000)", "smaller 5xx magnitude"],
+    "expected_efficiency": {
+      "prior_skill_reused": true,
+      "expect_fewer_or_equal": ["specialist_calls", "tool_calls", "main_model_calls", "investigation_time_ms"],
+      "expect_higher_or_equal_confidence": true,
+      "note": "Achieving the measured improvement requires the skill-reuse path (recursive_learning_expert + a core lifecycle hook). In pure mock mode WITHOUT that path, this cycle runs the identical fixed pipeline as incident one, so the comparison correctly reports 0 improved metrics. See fixtures/README.md and the Wave 3 handoff. Do NOT hard-code improvement."
+    }
+  },
+  "reconciliation_note": "The tool registry (app/tools/fixtures.py) currently ships a redis-incident-002 that reuses deployment/api. This canonical fixture models the PRD's 'another service' (checkout). Core should adopt this shape so incident two is genuinely a different service; the demo still runs today against whatever app/tools/fixtures.py provides."
+}

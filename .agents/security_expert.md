@@ -19,6 +19,7 @@ Define and implement:
 - `app/security/`
 - `app/policies/`
 - `policies/`
+- `fixtures/codex/attacks/`
 - `fixtures/attacks/`
 - `tests/security/`
 

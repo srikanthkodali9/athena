@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "edge_case_id": "edge_out_of_order_metrics_001",
+  "category": "telemetry_normalization",
+  "dataset_id": "metrics_edge_out_of_order_001",
+  "incident_id": "inc_edge_out_of_order_001",
+  "source": "prometheus_fixture",
+  "series": [
+    {
+      "evidence_id": "metric_redis_rejected_out_of_order_001",
+      "metric": "redis_rejected_connections_per_minute",
+      "labels": {"service": "redis-demo"},
+      "unit": "connections_per_minute",
+      "points": [
+        {"timestamp": "2026-07-18T22:02:00Z", "value": 7},
+        {"timestamp": "2026-07-18T22:00:00Z", "value": 0},
+        {"timestamp": "2026-07-18T22:01:00Z", "value": 3},
+        {"timestamp": "2026-07-18T22:01:00Z", "value": 4}
+      ]
+    }
+  ],
+  "expected": {
+    "normalization": "sort_ascending_and_keep_last_duplicate",
+    "normalized_values": [0, 4, 7],
+    "normalization_recorded": true
+  }
+}

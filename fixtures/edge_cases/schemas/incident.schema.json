@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://athena.local/schemas/incident.schema.json",
+  "title": "Athena synthetic incident fixture",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "incident_id",
+    "scenario_id",
+    "family",
+    "trigger",
+    "service",
+    "initial_hypothesis",
+    "investigation"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "incident_id": {"type": "string", "pattern": "^inc_"},
+    "scenario_id": {"type": "string"},
+    "family": {"type": "string"},
+    "trigger": {
+      "type": "object",
+      "required": ["type", "observed_at", "alert_ids"],
+      "properties": {
+        "type": {"enum": ["heartbeat", "manual", "replay"]},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "alert_ids": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "service": {
+      "type": "object",
+      "required": ["name", "namespace", "owner", "dependencies"],
+      "properties": {
+        "name": {"type": "string"},
+        "namespace": {"type": "string"},
+        "owner": {"type": "string"},
+        "dependencies": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "initial_hypothesis": {"type": "string"},
+    "investigation": {
+      "type": "object",
+      "required": ["round_1", "mid_cycle", "round_2"],
+      "properties": {
+        "round_1": {"type": "object"},
+        "mid_cycle": {"type": "object"},
+        "round_2": {"type": "object"}
+      }
+    }
+  },
+  "additionalProperties": true
+}

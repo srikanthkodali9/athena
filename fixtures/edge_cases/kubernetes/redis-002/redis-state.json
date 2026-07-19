@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "evidence_id": "k8s_redis_maxclients_002",
+  "observed_at": "2026-07-18T19:05:30Z",
+  "object": {
+    "kind": "StatefulSet",
+    "name": "redis-features",
+    "namespace": "personalization"
+  },
+  "redis_config": {
+    "maxclients": 450,
+    "connected_clients": 450,
+    "blocked_clients": 0,
+    "used_memory_percent": 58.4,
+    "evicted_keys": 0
+  },
+  "health": {
+    "ready_replicas": 1,
+    "desired_replicas": 1,
+    "pod_restarts": 0
+  }
+}

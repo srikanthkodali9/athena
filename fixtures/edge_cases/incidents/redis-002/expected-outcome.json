@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "redis-002",
+  "test_oracle_only": true,
+  "mid_cycle_expectation": {
+    "decision": "CONTINUE_PLAN",
+    "reason_contains": [
+      "timeline matches the promoted Redis connection-saturation fingerprint",
+      "service-specific pool configuration still requires Platform verification"
+    ],
+    "platform_question": "Did recommendations-api increase its Redis pool capacity beyond the redis-features client limit?"
+  },
+  "ground_truth": {
+    "root_cause": "recommendations-api increased REDIS_POOL_MAX_SIZE from 40 to 140 across four replicas, saturating redis-features maxclients=450 when combined with existing consumers.",
+    "minimum_confidence": 0.92,
+    "recommendation": "Request approval to restore REDIS_POOL_MAX_SIZE to 40 and verify redis-features rejected connections and recommendation errors recover.",
+    "requires_approval": true
+  },
+  "required_evidence_ids": [
+    "metric_redis_rejected_002",
+    "metric_redis_clients_002",
+    "metric_recommendations_5xx_002",
+    "diff_recommendations_pool_002",
+    "k8s_redis_maxclients_002",
+    "skill_sre_redis_connection_saturation"
+  ],
+  "learning_expectations": {
+    "reuse_promoted_skill": true,
+    "skill_id": "sre.redis.connection-saturation",
+    "known_false_leads_applied": [
+      "Do not begin with an application-code regression when dependency rejection precedes service errors and service resources are healthy."
+    ],
+    "create_new_skill": false,
+    "append_supporting_episode": true
+  },
+  "measurement_targets": {
+    "investigation_time_seconds_max": 60,
+    "specialist_calls_max": 2,
+    "tool_calls_max": 4,
+    "main_model_calls_max": 4,
+    "unsupported_hypotheses_max": 0,
+    "must_improve_over": "redis-001",
+    "required_improvement_count": 2,
+    "candidate_improvements": [
+      "investigation_time_seconds",
+      "tool_calls",
+      "root_cause_confidence",
+      "unsupported_hypotheses"
+    ]
+  }
+}

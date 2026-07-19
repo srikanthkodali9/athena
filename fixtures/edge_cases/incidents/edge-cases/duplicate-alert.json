@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "edge_case_id": "edge_duplicate_alert_001",
+  "category": "idempotency",
+  "input": {
+    "alert_id": "alert_checkout_5xx_001",
+    "idempotency_key": "heartbeat:alert_checkout_5xx_001:2026-07-18T18:10Z",
+    "first_delivery_at": "2026-07-18T18:10:00Z",
+    "duplicate_delivery_at": "2026-07-18T18:10:03Z",
+    "existing_cycle_id": "cycle_demo_redis_001"
+  },
+  "expected": {
+    "new_cycle_created": false,
+    "returned_cycle_id": "cycle_demo_redis_001",
+    "duplicate_recorded": true,
+    "tool_calls_repeated": false
+  }
+}

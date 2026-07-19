@@ -1,0 +1,23 @@
+{
+  "fixture": "redis-incident-002",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "note": "Read-only Kubernetes deployment view backing incident two (checkout).",
+  "deployment": {
+    "object": "deployment/checkout",
+    "namespace": "prod",
+    "from_revision": "checkout-1204",
+    "to_revision": "checkout-1205",
+    "committed_at": "2026-07-19T14:02:00Z",
+    "replicas": 12,
+    "image_changed": false,
+    "changed_env": [
+      {"key": "REDIS_POOL_MAX", "from": "120", "to": "600"}
+    ],
+    "derived": {
+      "max_client_connections_estimate": "replicas(12) * REDIS_POOL_MAX(600) = 7200",
+      "redis_maxclients": 8000,
+      "note": "Same pool-saturation pattern as incident one, different service and ceiling."
+    }
+  }
+}

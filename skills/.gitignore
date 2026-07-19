@@ -1,0 +1,3 @@
+# Generated skill artifacts are runtime state (the DB is the index).
+*.md
+!.gitkeep

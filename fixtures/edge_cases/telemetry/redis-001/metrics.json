@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0",
+  "dataset_id": "metrics_redis_001",
+  "incident_id": "inc_redis_001",
+  "source": "prometheus_fixture",
+  "step_seconds": 60,
+  "series": [
+    {
+      "evidence_id": "metric_redis_rejected_001",
+      "metric": "redis_rejected_connections_per_minute",
+      "labels": {"service": "redis-cart", "namespace": "commerce"},
+      "unit": "connections_per_minute",
+      "points": [
+        {"timestamp": "2026-07-18T18:00:00Z", "value": 0},
+        {"timestamp": "2026-07-18T18:01:00Z", "value": 0},
+        {"timestamp": "2026-07-18T18:02:00Z", "value": 0},
+        {"timestamp": "2026-07-18T18:03:00Z", "value": 4},
+        {"timestamp": "2026-07-18T18:04:00Z", "value": 16},
+        {"timestamp": "2026-07-18T18:05:00Z", "value": 31},
+        {"timestamp": "2026-07-18T18:06:00Z", "value": 42},
+        {"timestamp": "2026-07-18T18:07:00Z", "value": 44},
+        {"timestamp": "2026-07-18T18:08:00Z", "value": 43},
+        {"timestamp": "2026-07-18T18:09:00Z", "value": 41}
+      ]
+    },
+    {
+      "evidence_id": "metric_redis_clients_001",
+      "metric": "redis_connected_clients",
+      "labels": {"service": "redis-cart", "namespace": "commerce"},
+      "unit": "connections",
+      "points": [
+        {"timestamp": "2026-07-18T18:00:00Z", "value": 320},
+        {"timestamp": "2026-07-18T18:01:00Z", "value": 326},
+        {"timestamp": "2026-07-18T18:02:00Z", "value": 447},
+        {"timestamp": "2026-07-18T18:03:00Z", "value": 493},
+        {"timestamp": "2026-07-18T18:04:00Z", "value": 498},
+        {"timestamp": "2026-07-18T18:05:00Z", "value": 499},
+        {"timestamp": "2026-07-18T18:06:00Z", "value": 499},
+        {"timestamp": "2026-07-18T18:07:00Z", "value": 500},
+        {"timestamp": "2026-07-18T18:08:00Z", "value": 499},
+        {"timestamp": "2026-07-18T18:09:00Z", "value": 499}
+      ]
+    },
+    {
+      "evidence_id": "metric_checkout_5xx_001",
+      "metric": "http_5xx_rate",
+      "labels": {"service": "checkout-api", "namespace": "commerce"},
+      "unit": "ratio",
+      "points": [
+        {"timestamp": "2026-07-18T18:00:00Z", "value": 0.01},
+        {"timestamp": "2026-07-18T18:01:00Z", "value": 0.01},
+        {"timestamp": "2026-07-18T18:02:00Z", "value": 0.01},
+        {"timestamp": "2026-07-18T18:03:00Z", "value": 0.01},
+        {"timestamp": "2026-07-18T18:04:00Z", "value": 0.06},
+        {"timestamp": "2026-07-18T18:05:00Z", "value": 0.12},
+        {"timestamp": "2026-07-18T18:06:00Z", "value": 0.18},
+        {"timestamp": "2026-07-18T18:07:00Z", "value": 0.19},
+        {"timestamp": "2026-07-18T18:08:00Z", "value": 0.18},
+        {"timestamp": "2026-07-18T18:09:00Z", "value": 0.18}
+      ]
+    },
+    {
+      "evidence_id": "metric_checkout_latency_001",
+      "metric": "http_request_duration_p95_seconds",
+      "labels": {"service": "checkout-api", "namespace": "commerce"},
+      "unit": "seconds",
+      "points": [
+        {"timestamp": "2026-07-18T18:00:00Z", "value": 0.24},
+        {"timestamp": "2026-07-18T18:01:00Z", "value": 0.25},
+        {"timestamp": "2026-07-18T18:02:00Z", "value": 0.25},
+        {"timestamp": "2026-07-18T18:03:00Z", "value": 0.31},
+        {"timestamp": "2026-07-18T18:04:00Z", "value": 0.74},
+        {"timestamp": "2026-07-18T18:05:00Z", "value": 1.31},
+        {"timestamp": "2026-07-18T18:06:00Z", "value": 1.82},
+        {"timestamp": "2026-07-18T18:07:00Z", "value": 1.91},
+        {"timestamp": "2026-07-18T18:08:00Z", "value": 1.84},
+        {"timestamp": "2026-07-18T18:09:00Z", "value": 1.82}
+      ]
+    },
+    {
+      "evidence_id": "metric_checkout_cpu_001",
+      "metric": "container_cpu_utilization",
+      "labels": {"service": "checkout-api", "namespace": "commerce"},
+      "unit": "ratio",
+      "points": [
+        {"timestamp": "2026-07-18T18:00:00Z", "value": 0.41},
+        {"timestamp": "2026-07-18T18:01:00Z", "value": 0.42},
+        {"timestamp": "2026-07-18T18:02:00Z", "value": 0.43},
+        {"timestamp": "2026-07-18T18:03:00Z", "value": 0.44},
+        {"timestamp": "2026-07-18T18:04:00Z", "value": 0.42},
+        {"timestamp": "2026-07-18T18:05:00Z", "value": 0.43},
+        {"timestamp": "2026-07-18T18:06:00Z", "value": 0.44},
+        {"timestamp": "2026-07-18T18:07:00Z", "value": 0.45},
+        {"timestamp": "2026-07-18T18:08:00Z", "value": 0.43},
+        {"timestamp": "2026-07-18T18:09:00Z", "value": 0.42}
+      ]
+    },
+    {
+      "evidence_id": "metric_payments_5xx_001",
+      "metric": "http_5xx_rate",
+      "labels": {"service": "payments-api", "namespace": "commerce"},
+      "unit": "ratio",
+      "points": [
+        {"timestamp": "2026-07-18T18:00:00Z", "value": 0.002},
+        {"timestamp": "2026-07-18T18:01:00Z", "value": 0.002},
+        {"timestamp": "2026-07-18T18:02:00Z", "value": 0.002},
+        {"timestamp": "2026-07-18T18:03:00Z", "value": 0.003},
+        {"timestamp": "2026-07-18T18:04:00Z", "value": 0.002},
+        {"timestamp": "2026-07-18T18:05:00Z", "value": 0.003},
+        {"timestamp": "2026-07-18T18:06:00Z", "value": 0.002},
+        {"timestamp": "2026-07-18T18:07:00Z", "value": 0.002},
+        {"timestamp": "2026-07-18T18:08:00Z", "value": 0.003},
+        {"timestamp": "2026-07-18T18:09:00Z", "value": 0.002}
+      ]
+    }
+  ]
+}

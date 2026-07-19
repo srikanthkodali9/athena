@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "edge_case_id": "edge_contradictory_evidence_001",
+  "category": "hypothesis_revision",
+  "input": {
+    "incident_id": "inc_edge_contradictory_001",
+    "initial_hypothesis": "Redis connection saturation caused the API errors.",
+    "evidence": [
+      {
+        "evidence_id": "metric_api_cpu_edge_001",
+        "fact": "API CPU reached 0.98 at 20:01Z, before errors began at 20:03Z."
+      },
+      {
+        "evidence_id": "metric_redis_rejected_edge_001",
+        "fact": "Redis rejected connections remained zero throughout the window."
+      },
+      {
+        "evidence_id": "metric_redis_clients_edge_001",
+        "fact": "Redis connected clients remained below 45 percent of maxclients."
+      }
+    ]
+  },
+  "expected": {
+    "mid_cycle_decision": "REVISE_PLAN",
+    "revised_platform_scope": "Investigate API CPU saturation and workload limits rather than Redis configuration.",
+    "redis_skill_applied": false,
+    "record_false_lead": true,
+    "maximum_root_cause_confidence_for_redis": 0.1
+  }
+}
