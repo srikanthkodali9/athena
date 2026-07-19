@@ -115,19 +115,16 @@ def test_codex_demo_endpoint_does_not_mutate_existing_demo(demo_client):
     assert after["codex"]["passed"] is True
 
 
-def test_dashboard_has_one_run_button_and_separate_codex_panels(demo_client):
+def test_dashboard_has_single_run_control_and_codex_view(demo_client):
+    """The redesigned console has one run control and surfaces Codex as its own
+    navigable page (its panels are rendered client-side from /demo/console)."""
     response = demo_client.get("/dashboard/")
     assert response.status_code == 200, response.text
     html = response.text
 
-    assert html.count('id="run-btn"') == 1
-    assert "Run both demos" in html
-    assert 'id="standard-workflow"' in html
-    assert 'id="codex-workflow"' in html
-    assert 'id="codex-scenarios-body"' in html
-    assert 'id="codex-comparison-body"' in html
-    assert 'id="codex-security-body"' in html
-    assert 'id="codex-edge-body"' in html
+    assert html.count('id="run"') == 1
+    assert 'data-page="codex"' in html
+    assert 'id="page-codex"' in html
 
 
 def test_codex_demo_script_returns_success_and_json():

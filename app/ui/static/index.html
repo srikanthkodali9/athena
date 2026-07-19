@@ -3,125 +3,55 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Athena — SRE Intelligence Demo</title>
+  <title>Athena — SRE Console</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="logo">A</span>
-      <div>
-        <h1>Athena</h1>
-        <p class="tagline">Heartbeat-driven SRE intelligence · judge dashboard</p>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="logo">A</span><b>Athena</b><span class="pill">SRE</span></div>
+    <nav class="nav">
+      <span class="lab">Operations</span>
+      <a data-page="incidents" class="on"><svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v6c0 5 3.8 8.3 9 9 5.2-.7 9-4 9-9V7z"/><path d="m9 12 2 2 4-4"/></svg>Incidents<span class="ct" id="ct-incidents">0</span></a>
+      <a data-page="skills"><svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-9 5-9-5V8l9-5 9 5z"/><path d="M12 3v18"/></svg>Skills<span class="ct" id="ct-skills">0</span></a>
+      <a data-page="security"><svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5-2 8-5 8-10V5l-8-3-8 3v7c0 5 3 8 8 10z"/></svg>Security<span class="ct" id="ct-security">0</span></a>
+      <a data-page="metrics"><svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l3-4 3 3 4-6"/></svg>Metrics</a>
+      <a data-page="codex"><svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4M9 3v4h6V3M9 3h6M8 13l2 2 4-4"/></svg>Codex<span class="ct" id="ct-codex">0</span></a>
+      <span class="lab">Configure</span>
+      <a data-page="heartbeat"><svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Heartbeat</a>
+      <a data-page="integrations"><svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v6M14 3v6M6 9h12l-1 7a4 4 0 0 1-4 4h-2a4 4 0 0 1-4-4z"/></svg>Integrations</a>
+    </nav>
+    <div class="foot">
+      <div class="envrow" id="envrow"><span class="d"></span>loading…</div>
+      <div class="who"><span class="av">SR</span><div><b>SRE on-call</b><small>platform team</small></div></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb">Incidents</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="refresh"><svg viewBox="0 0 24 24" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Refresh</button>
+        <button class="btn primary" id="run">Run cycle</button>
       </div>
     </div>
-    <div class="controls">
-      <span id="mode-badge" class="badge badge-mock" title="Provider mode">mode: …</span>
-      <span id="conn-badge" class="badge">API: …</span>
-      <button id="run-btn">Run both demos</button>
-      <button id="refresh-btn" class="secondary">Refresh</button>
+
+    <div class="scroll">
+      <div class="empty" id="empty" hidden>
+        <h2>No cycles yet</h2>
+        <p>Press <strong>Run cycle</strong> — the heartbeat detects the incident and runs a full investigation. Every value on these pages is read from the persisted record.</p>
+      </div>
+      <section class="page on" id="page-incidents"></section>
+      <section class="page" id="page-detail"></section>
+      <section class="page" id="page-skills"></section>
+      <section class="page" id="page-security"></section>
+      <section class="page" id="page-metrics"></section>
+      <section class="page" id="page-codex"></section>
+      <section class="page" id="page-heartbeat"></section>
+      <section class="page" id="page-integrations"></section>
     </div>
-  </header>
-
-  <main>
-    <p id="empty-hint" class="hint">
-      No results yet. Press <strong>Run both demos</strong> once to execute the
-      standard heartbeat story and the isolated <code>fixtures/codex</code>
-      workflow. The two result sets remain separate below.
-    </p>
-
-    <section class="dataset-section" id="standard-workflow">
-      <div class="section-heading">
-        <div>
-          <span class="section-eyebrow">Persisted heartbeat workflow</span>
-          <h2>Standard demo · <code>fixtures/incidents</code></h2>
-          <p>Cycles, comparisons, and security decisions come from the normal Athena state and ledger.</p>
-        </div>
-      </div>
-
-      <div class="grid">
-        <!-- 1. Autonomy / heartbeat -->
-        <article class="card" id="card-autonomy">
-          <h2>1 · Autonomous detection</h2>
-          <div class="card-body" id="autonomy-body"><span class="muted">—</span></div>
-        </article>
-
-        <!-- 2. Plan revision -->
-        <article class="card" id="card-revision">
-          <h2>2 · Plan &amp; mid-cycle revision</h2>
-          <div class="card-body" id="revision-body"><span class="muted">—</span></div>
-        </article>
-
-        <!-- 3. Evidence -->
-        <article class="card" id="card-evidence">
-          <h2>3 · Evidence</h2>
-          <div class="card-body" id="evidence-body"><span class="muted">—</span></div>
-        </article>
-
-        <!-- 4. Model routing -->
-        <article class="card" id="card-routing">
-          <h2>4 · Model routing</h2>
-          <div class="card-body" id="routing-body"><span class="muted">—</span></div>
-        </article>
-
-        <!-- 5. Learning lifecycle -->
-        <article class="card" id="card-learning">
-          <h2>5 · Learning lifecycle</h2>
-          <div class="card-body" id="learning-body"><span class="muted">—</span></div>
-        </article>
-
-        <!-- 6. Security -->
-        <article class="card" id="card-security">
-          <h2>6 · Runtime security</h2>
-          <div class="card-body" id="security-body"><span class="muted">—</span></div>
-        </article>
-
-        <!-- 7. Comparison -->
-        <article class="card wide" id="card-comparison">
-          <h2>7 · First-vs-learned (FR-14)</h2>
-          <div class="card-body" id="comparison-body"><span class="muted">—</span></div>
-        </article>
-      </div>
-    </section>
-
-    <section class="dataset-section codex-section" id="codex-workflow">
-      <div class="section-heading">
-        <div>
-          <span class="section-eyebrow">Isolated fixture workflow</span>
-          <h2>Codex demo · <code>fixtures/codex</code></h2>
-          <p>Test-oracle files are validation-only; no result is written into the standard demo stores.</p>
-        </div>
-        <span id="codex-status" class="badge">not run</span>
-      </div>
-
-      <div class="grid">
-        <article class="card wide" id="card-codex-scenarios">
-          <h2>C1 · Scenario outcomes</h2>
-          <div class="card-body" id="codex-scenarios-body"><span class="muted">—</span></div>
-        </article>
-
-        <article class="card" id="card-codex-comparison">
-          <h2>C2 · Learning &amp; improvement gate</h2>
-          <div class="card-body" id="codex-comparison-body"><span class="muted">—</span></div>
-        </article>
-
-        <article class="card" id="card-codex-security">
-          <h2>C3 · Security boundaries</h2>
-          <div class="card-body" id="codex-security-body"><span class="muted">—</span></div>
-        </article>
-
-        <article class="card wide" id="card-codex-edge-cases">
-          <h2>C4 · Edge-case validation</h2>
-          <div class="card-body" id="codex-edge-body"><span class="muted">—</span></div>
-        </article>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <span id="footer-note">Athena demo · mock-mode values are deterministic · labels reflect real provider mode</span>
-  </footer>
-
-  <script src="app.js"></script>
+  </div>
+</div>
+<script src="app.js"></script>
 </body>
 </html>
