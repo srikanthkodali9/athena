@@ -30,8 +30,9 @@ from app.api.app import create_app
 from app.api.dependencies import AppContext, get_context
 from app.athena.config import Settings
 from app.athena.schemas import Cycle
+from app.heartbeat.change_detection import MONITORED_SIGNALS
 from app.ui import demo_runner
-from app.ui.comparison import compare_dumps
+from app.ui.comparison import build_snapshot, compare_dumps
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -115,6 +116,146 @@ def _security_summary(ctx: AppContext) -> dict[str, Any]:
     }
 
 
+def _incident_view(cycle: Cycle) -> dict[str, Any]:
+    """One incident as the console renders it, straight from the cycle record."""
+    dump = cycle.model_dump(mode="json")
+    snap = build_snapshot(dump)
+    plan = None
+    if cycle.plan is not None:
+        plan = {
+            "revision_used": cycle.plan.revision_used,
+            "original_platform_question": cycle.plan.original_platform_question,
+            "platform_question": cycle.plan.platform_question,
+            "revision_reason": cycle.plan.revision_reason,
+        }
+    signal = None
+    if cycle.changes_detected:
+        signal = cycle.changes_detected[0].get("summary")
+    return {
+        "cycle_id": cycle.cycle_id,
+        "fixture": cycle.fixture,
+        "trigger": cycle.trigger.value,
+        "state": cycle.state.value,
+        "decision": cycle.decision.value if cycle.decision else None,
+        "change_class": cycle.change_class.value if cycle.change_class else None,
+        "mid_cycle_decision": (
+            cycle.mid_cycle_decision.value if cycle.mid_cycle_decision else None
+        ),
+        "signal": signal,
+        "evidence_ids": cycle.evidence_ids,
+        "evidence_count": len(cycle.evidence_ids),
+        "model_calls": cycle.metrics.model_calls,
+        "tool_calls": cycle.metrics.tool_calls,
+        "specialists": cycle.metrics.specialists_invoked,
+        "total_tokens": cycle.metrics.total_tokens,
+        "duration_ms": cycle.metrics.duration_ms,
+        "security_inspections": cycle.metrics.security_inspections,
+        "confidence": snap.get("root_cause_confidence"),
+        "plan": plan,
+        "inferences": [i.model_dump(mode="json") for i in cycle.metrics.inferences],
+    }
+
+
+def _skills_view(ctx: AppContext) -> list[dict[str, Any]]:
+    """Learned skills, deduplicated to distinct versions per skill id."""
+    store = getattr(ctx, "learning_store", None)
+    if store is None:
+        return []
+    by_id: dict[str, list[Any]] = {}
+    for skill in store.list_skills():  # newest first
+        by_id.setdefault(skill.skill_id, []).append(skill)
+
+    out: list[dict[str, Any]] = []
+    for skill_id, all_versions in by_id.items():
+        seen: set[str] = set()
+        versions = []
+        for s in all_versions:  # newest first
+            if s.version in seen:
+                continue
+            seen.add(s.version)
+            versions.append(s)
+        latest = versions[0]
+        out.append(
+            {
+                "skill_id": skill_id,
+                "title": latest.title,
+                "domain": latest.domain,
+                "risk": latest.risk.value,
+                "confidence": latest.confidence,
+                "status": latest.status.value,
+                "latest_version": latest.version,
+                "hiddenlayer_status": latest.hiddenlayer_status,
+                "triggers": latest.triggers,
+                "from_incidents": latest.provenance.created_from_incidents,
+                "versions": [
+                    {
+                        "version": v.version,
+                        "status": v.status.value,
+                        "from_incidents": v.provenance.created_from_incidents,
+                        "validation_passes": v.validation_passes,
+                        "hiddenlayer_status": v.hiddenlayer_status,
+                        "false_leads": len(v.known_false_leads),
+                    }
+                    for v in versions
+                ],
+                "replay": [
+                    {
+                        "fixture": r.fixture_name,
+                        "kind": r.kind.value,
+                        "verdict": r.verdict.value,
+                        "passed": r.passed,
+                    }
+                    for r in latest.validation_history
+                ],
+            }
+        )
+    return out
+
+
+def _integrations_view(ctx: AppContext) -> list[dict[str, Any]]:
+    """The real outbound adapters and their configured/mock status."""
+    s = ctx.settings
+
+    def row(name, sub, endpoint, env, mode, status, tone):
+        return {
+            "name": name, "sub": sub, "endpoint": endpoint,
+            "env": env, "mode": mode, "status": status, "tone": tone,
+        }
+
+    main_ok = bool(s.main_model_base_url)
+    council_ok = bool(s.council_model_base_url)
+    sec_ok = bool(s.security_base_url)
+    prom_ok = bool(s.prometheus_base_url)
+    return [
+        row("NVIDIA NIM · Nemotron-Super", "strategic tier",
+            "nvidia/llama-3.1-nemotron-super-49b", "ATHENA_MAIN_MODEL_BASE_URL",
+            s.inference_mode.value, "configured" if main_ok else "not configured",
+            "ok" if main_ok else "warn"),
+        row("NVIDIA NIM · Nemotron-Nano", "council tier",
+            "nvidia/nemotron-nano-9b", "ATHENA_COUNCIL_MODEL_BASE_URL",
+            s.inference_mode.value, "configured" if council_ok else "not configured",
+            "ok" if council_ok else "warn"),
+        row("HiddenLayer", "runtime security",
+            "interactions.analyze · OAuth2", "ATHENA_SECURITY_BASE_URL",
+            s.security_mode.value, "configured" if sec_ok else "not configured",
+            "ok" if sec_ok else "warn"),
+        row("OpenShell", "capability policy",
+            s.openshell_policy_path, "ATHENA_OPENSHELL_POLICY_PATH",
+            "local", "active", "ok"),
+        row("Prometheus", "telemetry",
+            "/api/v1/query", "ATHENA_PROMETHEUS_BASE_URL",
+            "fixture", "configured" if prom_ok else "not configured",
+            "ok" if prom_ok else "warn"),
+        row("Kubernetes", "cluster reads",
+            "read-only events & diffs", "ATHENA_KUBERNETES_MODE",
+            s.kubernetes_mode.value, "fixture", "dim"),
+        row("OpenRouter", "model fallback",
+            "OpenAI-compatible", "ATHENA_FALLBACK_MODEL_BASE_URL",
+            "-", "enabled" if s.fallback_enabled else "disabled",
+            "ok" if s.fallback_enabled else "dim"),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -154,6 +295,55 @@ async def demo_state(
         "security": _security_summary(ctx),
         "comparison": comparison,
         "has_run": first is not None,
+    }
+
+
+@router.get("/console")
+async def demo_console(
+    request: Request, ctx: AppContext = Depends(get_context), min_improved: int = 2
+) -> dict[str, Any]:
+    """One aggregate read that drives every page of the console.
+
+    All values come from persisted cycle records, the learning store, the shared
+    security ledger, and resolved settings — nothing is synthesized here.
+    """
+    completed = [c for c in ctx.store.list_cycles(limit=200) if c.state.value == "completed"]
+    latest = _latest_incident_cycles(ctx)
+    first = latest.get(demo_runner.INCIDENT_ONE_FIXTURE)
+    learned = latest.get(demo_runner.INCIDENT_TWO_FIXTURE)
+
+    incidents = [_incident_view(c) for c in completed]
+    comparison = None
+    if first is not None and learned is not None:
+        comparison = compare_dumps(
+            first.model_dump(mode="json"),
+            learned.model_dump(mode="json"),
+            min_improved=min_improved,
+        )
+
+    security = _security_summary(ctx)
+    security["total_inspections"] = sum(c.metrics.security_inspections for c in completed)
+
+    return {
+        "request_id": request.state.request_id,
+        "has_run": bool(incidents),
+        "config": ctx.settings.sanitized_status(),
+        "incidents": incidents,
+        "incident_one": _incident_view(first) if first else None,
+        "skills": _skills_view(ctx),
+        "security": security,
+        "comparison": comparison,
+        "heartbeat": {
+            "interval_seconds": ctx.settings.heartbeat_interval_seconds,
+            "signals": list(MONITORED_SIGNALS),
+            "budgets": {
+                "max_specialists": ctx.settings.max_specialists,
+                "max_total_tokens": ctx.settings.max_total_tokens,
+                "max_tool_calls": ctx.settings.max_tool_calls,
+                "deadline_seconds": ctx.settings.investigation_deadline_seconds,
+            },
+        },
+        "integrations": _integrations_view(ctx),
     }
 
 
