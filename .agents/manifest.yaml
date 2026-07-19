@@ -43,6 +43,7 @@ agents:
       - app/policies/
       - policies/
       - fixtures/codex/attacks/
+      - fixtures/attacks/
       - tests/security/
     first_wave: 1
 
@@ -87,6 +88,10 @@ agents:
       - fixtures/codex/telemetry/
       - fixtures/codex/kubernetes/
       - fixtures/codex/runbooks/
+      - fixtures/incidents/
+      - fixtures/telemetry/
+      - fixtures/kubernetes/
+      - fixtures/runbooks/
       - scripts/
       - tests/demo/
     first_wave: 3

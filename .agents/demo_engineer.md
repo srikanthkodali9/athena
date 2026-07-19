@@ -23,6 +23,10 @@ Build UI only after the fixture events and API response shapes are stable.
 - `fixtures/codex/telemetry/`
 - `fixtures/codex/kubernetes/`
 - `fixtures/codex/runbooks/`
+- `fixtures/incidents/`
+- `fixtures/telemetry/`
+- `fixtures/kubernetes/`
+- `fixtures/runbooks/`
 - `scripts/`
 - `tests/demo/`
 

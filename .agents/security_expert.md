@@ -20,6 +20,7 @@ Define and implement:
 - `app/policies/`
 - `policies/`
 - `fixtures/codex/attacks/`
+- `fixtures/attacks/`
 - `tests/security/`
 
 Changes elsewhere require coordinator approval.
