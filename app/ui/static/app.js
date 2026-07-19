@@ -63,11 +63,8 @@ function renderRevision(c) {
   } else {
     html += `
       <div class="qbox"><div class="lbl">Platform question</div><div>${esc(cur)}</div></div>
-      <div class="note">This cycle recorded <strong>${esc(c.mid_cycle_decision || "—")}</strong>.
-      Mid-cycle <strong>REVISE_PLAN</strong> for the Redis-saturation evidence requires the
-      evidence-driven <code>_step_mid_cycle</code> patch flagged in <code>fixtures/README.md</code>;
-      this panel reads <code>mid_cycle_decision</code> / plan questions straight from the
-      persisted cycle and will show the from→to change the moment that lands.</div>`;
+      <div class="note">This cycle recorded <strong>${esc(c.mid_cycle_decision || "—")}</strong>
+      without revising the Platform question.</div>`;
   }
   el.innerHTML = html;
 }
@@ -187,8 +184,130 @@ function renderComparison(cmp) {
       <thead><tr><th>metric</th><th class="num">first (incident 1)</th><th class="num">learned (incident 2)</th><th class="num">Δ</th><th>result</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <div class="note">Source: <code>${esc(cmp.source || "persisted_cycle_records")}</code>.
-    In pure mock mode both incidents run the identical fixed pipeline, so improvement is expected to be 0
-    until the skill-reuse path lands — the demo never fabricates a delta (see <code>fixtures/README.md</code>).</div>`;
+    Every delta is calculated from the persisted cycle records.</div>`;
+}
+
+function codexActionPill(value) {
+  const enforcement = ["quarantine", "reject_persistence", "deny", "block"];
+  const kind = enforcement.includes(value) ? "bad" : (value === "allow" ? "good" : "warn");
+  return pill(value || "—", kind);
+}
+
+function renderCodexScenarios(codex) {
+  const el = $("codex-scenarios-body");
+  if (!codex) {
+    el.innerHTML = `<span class="muted">Run both demos to execute the isolated Codex scenarios.</span>`;
+    return;
+  }
+  const scenarios = codex.scenarios || [];
+  const rows = scenarios.map((s) => {
+    const skill = s.skill_reused ? pill("reused", "good") : pill(s.skill_status || "—", "info");
+    return `<tr>
+      <td class="mono">${esc(s.scenario_id)}</td><td>${esc(s.service)}</td>
+      <td class="num">${esc(s.runtime_dataset_count)}</td><td class="num">${esc((s.evidence_ids || []).length)}</td>
+      <td>${pill(s.mid_cycle_decision, s.mid_cycle_decision === "REVISE_PLAN" ? "warn" : "good")}</td>
+      <td class="num">${esc(s.maximum_possible_clients)} / ${esc(s.redis_maxclients)}</td>
+      <td class="num">${esc(s.metrics && s.metrics.root_cause_confidence)}</td>
+      <td>${skill}</td><td>${pill(s.evaluation && s.evaluation.passed ? "pass" : "fail", s.evaluation && s.evaluation.passed ? "good" : "bad")}</td>
+    </tr>`;
+  }).join("");
+  const findings = scenarios.map((s) => `
+    <div class="qbox">
+      <div class="lbl">${esc(s.scenario_id)} root cause</div>
+      <div>${esc(s.root_cause)}</div>
+    </div>`).join("");
+  const isolation = Object.entries(codex.isolation || {}).map(([name, value]) =>
+    `${pill(value ? "yes" : "no", value ? "good" : "bad")} <span class="mono">${esc(name)}</span>`
+  ).join(" &nbsp; ");
+  el.innerHTML = `
+    <div class="tablewrap"><table>
+      <thead><tr><th>scenario</th><th>service</th><th class="num">datasets</th><th class="num">evidence</th><th>mid-cycle</th><th class="num">possible / maxclients</th><th class="num">confidence</th><th>skill</th><th>oracle</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="9" class="muted">no scenarios</td></tr>`}</tbody>
+    </table></div>
+    ${findings}
+    <div class="note"><strong>Isolation:</strong> ${isolation}</div>`;
+}
+
+function renderCodexComparison(codex) {
+  const el = $("codex-comparison-body");
+  if (!codex) {
+    el.innerHTML = `<span class="muted">No Codex comparison yet.</span>`;
+    return;
+  }
+  const cmp = codex.comparison || {};
+  const scenarios = codex.scenarios || [];
+  const first = scenarios[0] || {};
+  const learned = scenarios[1] || {};
+  const gate = cmp.passed
+    ? `<div class="gate pass">GATE PASS — ${esc(cmp.improved_count)} metric(s) improved (≥ ${esc(cmp.required_improvement_count)} required)</div>`
+    : `<div class="gate fail">GATE NOT MET — ${esc(cmp.improved_count || 0)} improvement(s)</div>`;
+  const rows = (cmp.candidate_metrics || []).map((r) => `
+    <tr><td>${esc(r.metric)}</td><td class="num">${esc(fmt(r.first))}</td>
+    <td class="num">${esc(fmt(r.learned))}</td><td>${r.measured === false ? pill("not fabricated", "info") : pill(r.improved ? "improved" : "same/worse", r.improved ? "good" : "warn")}</td></tr>`).join("");
+  el.innerHTML = `
+    ${gate}
+    <dl class="kv">
+      <dt>${esc(first.scenario_id || "first")}</dt><dd>${pill(first.skill_status || "—", "info")} · ${esc(first.replay_passes || 0)} replay passes</dd>
+      <dt>${esc(learned.scenario_id || "learned")}</dt><dd>${pill(learned.skill_reused ? "promoted skill reused" : "not reused", learned.skill_reused ? "good" : "warn")}</dd>
+    </dl>
+    <div class="tablewrap" style="margin-top:8px"><table>
+      <thead><tr><th>metric</th><th class="num">first</th><th class="num">learned</th><th>result</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+function renderCodexSecurity(codex) {
+  const el = $("codex-security-body");
+  if (!codex) {
+    el.innerHTML = `<span class="muted">No Codex security validation yet.</span>`;
+    return;
+  }
+  const sec = codex.security || {};
+  const checks = [
+    ["clean runbook", sec.clean_runbook_action],
+    ["poisoned runbook", sec.poisoned_runbook_action],
+    ["poisoned tool result", sec.poisoned_tool_result_action],
+    ["poisoned skill write", sec.poisoned_persistence_action],
+    ["sensitive log", sec.sensitive_log_action],
+    ["protected path", sec.protected_path_decision],
+    ["unapproved egress", sec.unapproved_egress_decision],
+  ];
+  const unavailable = Object.entries(sec.unavailable_gateway_actions || {}).map(([operation, action]) =>
+    `<tr><td>${esc(operation)}</td><td>${codexActionPill(action)}</td></tr>`
+  ).join("");
+  el.innerHTML = `
+    <div class="gate ${sec.passed ? "pass" : "fail"}">SECURITY ${sec.passed ? "PASS" : "FAIL"}</div>
+    <dl class="kv">${checks.map(([label, action]) => `<dt>${esc(label)}</dt><dd>${codexActionPill(action)}</dd>`).join("")}</dl>
+    <div class="lbl muted" style="margin-top:10px">gateway-unavailable policy</div>
+    <div class="tablewrap"><table><thead><tr><th>operation</th><th>action</th></tr></thead>
+      <tbody>${unavailable}</tbody></table></div>`;
+}
+
+function renderCodexEdges(codex) {
+  const el = $("codex-edge-body");
+  if (!codex) {
+    el.innerHTML = `<span class="muted">No Codex edge-case validation yet.</span>`;
+    return;
+  }
+  const edges = codex.edge_cases || [];
+  const passed = edges.filter((edge) => edge.passed).length;
+  const rows = edges.map((edge) => `
+    <tr><td class="mono">${esc(edge.edge_case_id)}</td><td>${esc(edge.category)}</td>
+    <td>${pill(edge.passed ? "pass" : "fail", edge.passed ? "good" : "bad")}</td></tr>`).join("");
+  el.innerHTML = `
+    <div class="gate ${passed === edges.length ? "pass" : "fail"}">${passed}/${edges.length} EDGE CASES PASS</div>
+    <div class="tablewrap"><table><thead><tr><th>edge case</th><th>category</th><th>result</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+function renderCodex(codex) {
+  const status = $("codex-status");
+  status.textContent = codex ? (codex.passed ? "workflow: pass" : "workflow: fail") : "not run";
+  status.className = "badge " + (codex ? (codex.passed ? "badge-live" : "badge-bad") : "");
+  renderCodexScenarios(codex);
+  renderCodexComparison(codex);
+  renderCodexSecurity(codex);
+  renderCodexEdges(codex);
 }
 
 // --- driver ---------------------------------------------------------------
@@ -200,13 +319,14 @@ async function refresh() {
     conn.textContent = "API: ok"; conn.className = "badge badge-live";
     const b = st.body;
     renderMode(b.mode);
-    $("empty-hint").style.display = b.has_run ? "none" : "block";
+    $("empty-hint").style.display = b.has_run || b.codex ? "none" : "block";
     renderAutonomy(b.incident_one);
     renderRevision(b.incident_one);
     renderEvidence(b.incident_one);
     renderRouting(b.incident_one);
     renderSecurity(b.security);
     renderComparison(b.comparison);
+    renderCodex(b.codex);
     await renderLearning();
   } catch (e) {
     conn.textContent = "API: unreachable"; conn.className = "badge badge-bad";
@@ -215,11 +335,16 @@ async function refresh() {
 
 async function runDemo() {
   const btn = $("run-btn");
-  btn.disabled = true; btn.textContent = "Running…";
+  btn.disabled = true; btn.textContent = "Running both…";
+  $("codex-status").textContent = "running";
   try {
-    await fetch(API + "/demo/run", { method: "POST" });
-  } catch (e) { /* surfaced by refresh */ }
-  btn.disabled = false; btn.textContent = "Run demo";
+    const response = await fetch(API + "/demo/run", { method: "POST" });
+    if (!response.ok) throw new Error(`demo run failed (${response.status})`);
+  } catch (e) {
+    $("conn-badge").textContent = "API: run failed";
+    $("conn-badge").className = "badge badge-bad";
+  }
+  btn.disabled = false; btn.textContent = "Run both demos";
   await refresh();
 }
 

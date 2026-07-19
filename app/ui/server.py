@@ -5,11 +5,13 @@ gets the exact same system / heartbeat / metrics / security routes, request-id
 middleware, error handling, and a single lifespan-built ``AppContext``. On top
 of that it adds:
 
-* ``POST /api/v1/demo/run``      — drive incident one, incident two, and the
-  security drill in one shot (all against the shared context / store / ledger).
+* ``POST /api/v1/demo/run``      — drive the standard incident/security story
+  and the isolated ``fixtures/codex`` workflow from the dashboard's one button.
 * ``GET  /api/v1/demo/state``    — one aggregate read the dashboard renders,
-  built entirely from PERSISTED cycle records and the shared security ledger.
+  combining persisted standard-demo records with the last in-memory Codex result.
 * ``GET  /api/v1/demo/comparison`` — the FR-14 first-vs-learned table + gate.
+* ``POST /api/v1/demo/codex/run`` — isolated ``fixtures/codex`` workflow; no
+  writes to the existing heartbeat demo state.
 * ``/dashboard/``                — the static judge-facing dashboard.
 
 It re-implements no core logic; it composes and reads. Learning views
@@ -30,7 +32,7 @@ from app.api.app import create_app
 from app.api.dependencies import AppContext, get_context
 from app.athena.config import Settings
 from app.athena.schemas import Cycle
-from app.ui import demo_runner
+from app.ui import codex_demo_runner, demo_runner
 from app.ui.comparison import compare_dumps
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -126,16 +128,37 @@ async def demo_run(
     ctx: AppContext = Depends(get_context),
     min_improved: int = 2,
 ) -> dict[str, Any]:
-    """Run the full demo (both incidents + security drill) on the shared context."""
+    """Run both fixture workflows while keeping their state boundaries intact."""
     summary = await demo_runner.run_full_demo(ctx, min_improved=min_improved)
-    return {"request_id": request.state.request_id, **summary}
+    codex_result = codex_demo_runner.run_codex_demo().model_dump(mode="json")
+    request.app.state.codex_demo_result = codex_result
+    return {
+        "request_id": request.state.request_id,
+        **summary,
+        "codex": codex_result,
+    }
+
+
+@router.post("/codex/run")
+async def codex_demo_run(request: Request) -> dict[str, Any]:
+    """Run only the isolated ``fixtures/codex`` workflow.
+
+    The runner does not use ``app.tools.fixtures`` and does not write cycles,
+    skills, security events, or comparisons into the existing demo context.
+    """
+    result = codex_demo_runner.run_codex_demo().model_dump(mode="json")
+    request.app.state.codex_demo_result = result
+    return {
+        "request_id": request.state.request_id,
+        **result,
+    }
 
 
 @router.get("/state")
 async def demo_state(
     request: Request, ctx: AppContext = Depends(get_context)
 ) -> dict[str, Any]:
-    """Aggregate dashboard read — all from persisted records + shared ledger."""
+    """Aggregate dashboard read for the two deliberately separate workflows."""
     latest = _latest_incident_cycles(ctx)
     first = latest.get(demo_runner.INCIDENT_ONE_FIXTURE)
     learned = latest.get(demo_runner.INCIDENT_TWO_FIXTURE)
@@ -153,6 +176,7 @@ async def demo_state(
         "incident_two": _cycle_detail(learned) if learned else None,
         "security": _security_summary(ctx),
         "comparison": comparison,
+        "codex": getattr(request.app.state, "codex_demo_result", None),
         "has_run": first is not None,
     }
 

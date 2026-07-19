@@ -48,6 +48,17 @@ button:disabled { opacity: .5; cursor: progress; }
 main { padding: 22px; max-width: 1200px; margin: 0 auto; }
 .hint { color: var(--muted); background: var(--panel); border: 1px dashed var(--border);
   padding: 12px 16px; border-radius: 10px; font-size: 14px; }
+.dataset-section { margin-top: 24px; }
+.dataset-section + .dataset-section { margin-top: 34px; padding-top: 28px; border-top: 1px solid var(--border); }
+.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.section-heading h2 { margin: 2px 0 3px; font-size: 19px; }
+.section-heading h2 code { color: var(--accent); font-size: 15px; }
+.section-heading p { margin: 0; color: var(--muted); font-size: 13px; }
+.section-eyebrow { color: var(--accent); font-family: var(--mono); font-size: 11px;
+  letter-spacing: .7px; text-transform: uppercase; }
+.codex-section { position: relative; }
+.codex-section::before { content: ""; position: absolute; top: -1px; left: 0; width: 120px;
+  height: 2px; background: linear-gradient(90deg, var(--accent), transparent); }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; overflow: hidden; }
 .card.wide { grid-column: 1 / -1; }
@@ -80,3 +91,11 @@ footer { color: var(--muted); font-size: 12px; text-align: center; padding: 18px
 .gate.pass { background: #12351d; color: var(--good); border: 1px solid #14431f; }
 .gate.fail { background: #3a2f10; color: var(--warn); border: 1px solid #4a3a12; }
 .note { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+
+@media (max-width: 720px) {
+  .topbar { position: static; align-items: flex-start; gap: 14px; flex-direction: column; }
+  .controls { width: 100%; }
+  main { padding: 16px; }
+  .grid { grid-template-columns: 1fr; }
+  .section-heading { flex-direction: column; gap: 8px; }
+}

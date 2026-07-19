@@ -18,60 +18,103 @@
     <div class="controls">
       <span id="mode-badge" class="badge badge-mock" title="Provider mode">mode: …</span>
       <span id="conn-badge" class="badge">API: …</span>
-      <button id="run-btn">Run demo</button>
+      <button id="run-btn">Run both demos</button>
       <button id="refresh-btn" class="secondary">Refresh</button>
     </div>
   </header>
 
   <main>
     <p id="empty-hint" class="hint">
-      No cycles yet. Press <strong>Run demo</strong> — the heartbeat detects the
-      incident autonomously (no user prompt). Every value below is read from
-      persisted cycle records and the live security ledger, never hard-coded.
+      No results yet. Press <strong>Run both demos</strong> once to execute the
+      standard heartbeat story and the isolated <code>fixtures/codex</code>
+      workflow. The two result sets remain separate below.
     </p>
 
-    <section class="grid">
-      <!-- 1. Autonomy / heartbeat -->
-      <article class="card" id="card-autonomy">
-        <h2>1 · Autonomous detection</h2>
-        <div class="card-body" id="autonomy-body"><span class="muted">—</span></div>
-      </article>
+    <section class="dataset-section" id="standard-workflow">
+      <div class="section-heading">
+        <div>
+          <span class="section-eyebrow">Persisted heartbeat workflow</span>
+          <h2>Standard demo · <code>fixtures/incidents</code></h2>
+          <p>Cycles, comparisons, and security decisions come from the normal Athena state and ledger.</p>
+        </div>
+      </div>
 
-      <!-- 2. Plan revision -->
-      <article class="card" id="card-revision">
-        <h2>2 · Plan &amp; mid-cycle revision</h2>
-        <div class="card-body" id="revision-body"><span class="muted">—</span></div>
-      </article>
+      <div class="grid">
+        <!-- 1. Autonomy / heartbeat -->
+        <article class="card" id="card-autonomy">
+          <h2>1 · Autonomous detection</h2>
+          <div class="card-body" id="autonomy-body"><span class="muted">—</span></div>
+        </article>
 
-      <!-- 3. Evidence -->
-      <article class="card" id="card-evidence">
-        <h2>3 · Evidence</h2>
-        <div class="card-body" id="evidence-body"><span class="muted">—</span></div>
-      </article>
+        <!-- 2. Plan revision -->
+        <article class="card" id="card-revision">
+          <h2>2 · Plan &amp; mid-cycle revision</h2>
+          <div class="card-body" id="revision-body"><span class="muted">—</span></div>
+        </article>
 
-      <!-- 4. Model routing -->
-      <article class="card" id="card-routing">
-        <h2>4 · Model routing</h2>
-        <div class="card-body" id="routing-body"><span class="muted">—</span></div>
-      </article>
+        <!-- 3. Evidence -->
+        <article class="card" id="card-evidence">
+          <h2>3 · Evidence</h2>
+          <div class="card-body" id="evidence-body"><span class="muted">—</span></div>
+        </article>
 
-      <!-- 5. Learning lifecycle -->
-      <article class="card" id="card-learning">
-        <h2>5 · Learning lifecycle</h2>
-        <div class="card-body" id="learning-body"><span class="muted">—</span></div>
-      </article>
+        <!-- 4. Model routing -->
+        <article class="card" id="card-routing">
+          <h2>4 · Model routing</h2>
+          <div class="card-body" id="routing-body"><span class="muted">—</span></div>
+        </article>
 
-      <!-- 6. Security -->
-      <article class="card" id="card-security">
-        <h2>6 · Runtime security</h2>
-        <div class="card-body" id="security-body"><span class="muted">—</span></div>
-      </article>
+        <!-- 5. Learning lifecycle -->
+        <article class="card" id="card-learning">
+          <h2>5 · Learning lifecycle</h2>
+          <div class="card-body" id="learning-body"><span class="muted">—</span></div>
+        </article>
 
-      <!-- 7. Comparison -->
-      <article class="card wide" id="card-comparison">
-        <h2>7 · First-vs-learned (FR-14)</h2>
-        <div class="card-body" id="comparison-body"><span class="muted">—</span></div>
-      </article>
+        <!-- 6. Security -->
+        <article class="card" id="card-security">
+          <h2>6 · Runtime security</h2>
+          <div class="card-body" id="security-body"><span class="muted">—</span></div>
+        </article>
+
+        <!-- 7. Comparison -->
+        <article class="card wide" id="card-comparison">
+          <h2>7 · First-vs-learned (FR-14)</h2>
+          <div class="card-body" id="comparison-body"><span class="muted">—</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="dataset-section codex-section" id="codex-workflow">
+      <div class="section-heading">
+        <div>
+          <span class="section-eyebrow">Isolated fixture workflow</span>
+          <h2>Codex demo · <code>fixtures/codex</code></h2>
+          <p>Test-oracle files are validation-only; no result is written into the standard demo stores.</p>
+        </div>
+        <span id="codex-status" class="badge">not run</span>
+      </div>
+
+      <div class="grid">
+        <article class="card wide" id="card-codex-scenarios">
+          <h2>C1 · Scenario outcomes</h2>
+          <div class="card-body" id="codex-scenarios-body"><span class="muted">—</span></div>
+        </article>
+
+        <article class="card" id="card-codex-comparison">
+          <h2>C2 · Learning &amp; improvement gate</h2>
+          <div class="card-body" id="codex-comparison-body"><span class="muted">—</span></div>
+        </article>
+
+        <article class="card" id="card-codex-security">
+          <h2>C3 · Security boundaries</h2>
+          <div class="card-body" id="codex-security-body"><span class="muted">—</span></div>
+        </article>
+
+        <article class="card wide" id="card-codex-edge-cases">
+          <h2>C4 · Edge-case validation</h2>
+          <div class="card-body" id="codex-edge-body"><span class="muted">—</span></div>
+        </article>
+      </div>
     </section>
   </main>
 
