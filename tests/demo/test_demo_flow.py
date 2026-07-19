@@ -38,6 +38,23 @@ def test_full_demo_runs_and_persists_both_incidents(demo_client):
     assert len(one["evidence_ids"]) == 3  # incident-one ground truth
 
 
+def test_shared_dashboard_run_executes_both_fixture_workflows(demo_client):
+    summary = _run_demo(demo_client)
+
+    # Existing standard-demo response fields remain top-level for CLI/API
+    # compatibility, while the isolated fixture result is deliberately nested.
+    assert summary["incident_one_cycle_id"].startswith("cycle_")
+    assert summary["incident_two_cycle_id"].startswith("cycle_")
+    assert summary["codex"]["fixture_root"] == "fixtures/codex"
+    assert summary["codex"]["passed"] is True
+    assert len(summary["codex"]["scenarios"]) == 2
+
+    state = demo_client.get("/api/v1/demo/state").json()
+    assert state["has_run"] is True
+    assert state["codex"]["passed"] is True
+    assert len(state["codex"]["edge_cases"]) == 8
+
+
 def test_autonomy_and_plan_visible_from_persisted_state(demo_client):
     _run_demo(demo_client)
     state = demo_client.get("/api/v1/demo/state").json()

@@ -25,6 +25,6 @@ PORT="${ATHENA_PORT:-8000}"
 
 echo "start_demo: env=$ATHENA_ENV inference=$ATHENA_INFERENCE_MODE security=$ATHENA_SECURITY_MODE"
 echo "start_demo: dashboard -> http://$HOST:$PORT/dashboard/"
-echo "start_demo: press the 'Run demo' button, or run ./scripts/run_replay.sh in another shell."
+echo "start_demo: press 'Run both demos', or run ./scripts/run_replay.sh for the standard fixtures only."
 
 exec uv run uvicorn "app.ui.server:create_demo_app" --factory --host "$HOST" --port "$PORT"

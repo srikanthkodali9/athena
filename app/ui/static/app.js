@@ -9,7 +9,8 @@ const num = (v) => (v == null ? "—" : v);
 
 const CRUMBS = {
   incidents: "Incidents", detail: "Incidents / detail", skills: "Skills",
-  security: "Security", metrics: "Metrics", heartbeat: "Heartbeat", integrations: "Integrations",
+  security: "Security", metrics: "Metrics", codex: "Codex validation",
+  heartbeat: "Heartbeat", integrations: "Integrations",
 };
 
 let STATE = null;
@@ -293,6 +294,70 @@ function renderIntegrations(d) {
       table(`<th>Integration</th><th>Model / endpoint</th><th>Configured via</th><th>Mode</th><th>Status</th>`, rows));
 }
 
+const actTag = (a) => a === "allow" ? tag(a, "ok") : tag(a, "crit");
+
+function renderCodex(d) {
+  const x = d.codex;
+  if (!x) { $("page-codex").innerHTML =
+    `<div class="phead"><div><h1 class="ptitle">Codex validation</h1>
+      <p class="psub">Isolated <code>fixtures/codex</code> workflow — validation-only, never written into the main demo stores.</p></div></div>
+     <div class="empty"><p>Run a cycle to execute the Codex validation workflow.</p></div>`; return; }
+
+  const edgePass = x.edge_cases.filter((e) => e.passed).length;
+  const scen = x.scenarios.map((s) => `
+    <tr><td><b>${esc(s.scenario_id)}</b></td><td>${esc(s.service)}</td>
+      <td>${s.mid_cycle_decision === "REVISE_PLAN" ? tag(s.mid_cycle_decision, "brand") : tag(s.mid_cycle_decision, "dim")}</td>
+      <td class="r">${s.pool_size_before}→${s.pool_size_after} ×${s.replicas}</td>
+      <td class="r">${s.maximum_possible_clients} / ${s.redis_maxclients}</td>
+      <td class="r">${s.evidence_ids.length}</td>
+      <td class="r">${s.metrics ? s.metrics.root_cause_confidence : "—"}</td>
+      <td>${tag(s.skill_status || "—", s.skill_reused ? "brand" : "ok")}</td></tr>`).join("");
+  const causes = x.scenarios.map((s) => `
+    <div class="ev" style="display:block;white-space:normal;background:var(--panel-2);margin-bottom:6px;padding:8px 11px">
+      <b class="mono2" style="color:var(--brand-ink)">${esc(s.scenario_id)}</b> — ${esc(s.root_cause)}</div>`).join("");
+
+  const cm = x.comparison.candidate_metrics.map((m) => {
+    const res = m.measured === false ? `<span class="flat">not measured</span>`
+      : m.improved ? `<span class="imp">improved</span>` : `<span class="flat">unchanged</span>`;
+    const f = m.first != null ? m.first : "—", l = m.learned != null ? m.learned : "—";
+    return `<tr><td>${esc(m.metric)}</td><td class="r">${f}</td><td class="r">${l}</td><td>${res}</td></tr>`;
+  }).join("");
+
+  const sec = x.security, g = sec.unavailable_gateway_actions || {};
+  const secRows = [
+    ["clean runbook", sec.clean_runbook_action], ["poisoned runbook", sec.poisoned_runbook_action],
+    ["poisoned tool result", sec.poisoned_tool_result_action], ["poisoned persistence", sec.poisoned_persistence_action],
+    ["protected path", sec.protected_path_decision], ["unapproved egress", sec.unapproved_egress_decision],
+    ["gateway down · athena reply", g.athena_response], ["gateway down · tool call", g.tool_call],
+    ["gateway down · skill write", g.skill_write],
+  ].map(([k, v]) => `<tr><td>${esc(k)}</td><td>${actTag(v)}</td></tr>`).join("");
+
+  const edges = x.edge_cases.map((e) => `
+    <tr><td class="mono2">${esc(e.edge_case_id)}</td><td>${esc(e.category)}</td>
+      <td>${e.passed ? tag("pass", "ok") : tag("fail", "crit")}</td></tr>`).join("");
+
+  $("page-codex").innerHTML =
+    `<div class="phead"><div><h1 class="ptitle">Codex validation</h1>
+      <p class="psub">Isolated <code>${esc(x.fixture_root)}</code> workflow (<span class="mono2">${esc(x.catalog_id)}</span>) — validation-only, never written into the main demo stores.</p></div></div>` +
+    statStrip([
+      { l: "Scenarios", v: x.scenarios.length, s: "synthetic datasets" },
+      { l: "Edge cases", v: `<span style="color:var(--${edgePass === x.edge_cases.length ? "ok" : "warn"})">${edgePass}<small>/${x.edge_cases.length}</small></span>`, s: "validation matrix" },
+      { l: "Improvement gate", v: `<span style="color:var(--${x.comparison.passed ? "ok" : "warn"})">${x.comparison.passed ? "PASS" : "—"}</span>`, s: `≥ ${x.comparison.required_improvement_count} required` },
+      { l: "Workflow", v: `<span style="color:var(--${x.passed ? "ok" : "crit"})">${x.passed ? "PASS" : "FAIL"}</span>`, s: "all checks" },
+    ]) +
+    card("Scenario outcomes", `<span class="h-r">fixtures/codex</span>`,
+      table(`<th>Scenario</th><th>Service</th><th>Mid-cycle</th><th class="r">Pool</th><th class="r">Clients / limit</th><th class="r">Evidence</th><th class="r">Conf</th><th>Skill</th>`, scen) +
+      `<div class="b" style="padding-top:0">${causes}</div>`) +
+    `<div class="layout" style="grid-template-columns:1fr 1fr">` +
+      card("Learning & improvement gate", `<span class="h-r">${x.comparison.improved_count}/${x.comparison.required_improvement_count}</span>`,
+        table(`<th>Metric</th><th class="r">First</th><th class="r">Learned</th><th>Result</th>`, cm)) +
+      card("Security boundaries", x.security.passed ? tag("all enforced", "ok") : tag("gap", "crit"),
+        table(`<th>Transition</th><th>Action</th>`, secRows)) +
+    `</div>` +
+    card("Edge-case validation", `<span class="h-r">${edgePass}/${x.edge_cases.length} pass</span>`,
+      table(`<th>Edge case</th><th>Category</th><th>Result</th>`, edges));
+}
+
 // --- driver ---------------------------------------------------------------
 
 function renderAll(d) {
@@ -303,6 +368,7 @@ function renderAll(d) {
   $("ct-incidents").textContent = d.incidents.length;
   $("ct-skills").textContent = d.skills.length;
   $("ct-security").textContent = d.security.incident_count + d.security.denial_count;
+  $("ct-codex").textContent = d.codex ? d.codex.scenarios.length : 0;
   $("empty").hidden = d.has_run;
   if (!d.has_run) { document.querySelectorAll(".page").forEach((p) => (p.innerHTML = "")); return; }
   renderIncidents(d);
@@ -310,6 +376,7 @@ function renderAll(d) {
   renderSkills(d);
   renderSecurity(d);
   renderMetrics(d);
+  renderCodex(d);
   renderHeartbeat(d);
   renderIntegrations(d);
 }
