@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "edge_case_id": "edge_false_positive_redis_001",
+  "category": "false_positive",
+  "input": {
+    "incident_id": "inc_edge_false_positive_redis_001",
+    "evidence": [
+      {
+        "evidence_id": "metric_redis_rejected_edge_002",
+        "fact": "One connection was rejected during a maintenance probe and the value returned to zero."
+      },
+      {
+        "evidence_id": "metric_api_5xx_edge_002",
+        "fact": "API 5xx rate remained at the 0.006 baseline."
+      },
+      {
+        "evidence_id": "metric_redis_clients_edge_002",
+        "fact": "Connected clients peaked at 38 percent of maxclients."
+      }
+    ]
+  },
+  "expected": {
+    "decision": "WAIT",
+    "open_incident": false,
+    "apply_redis_skill": false,
+    "reason": "The complete trigger fingerprint is absent and service impact is not elevated."
+  }
+}

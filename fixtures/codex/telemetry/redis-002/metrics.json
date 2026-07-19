@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "dataset_id": "metrics_redis_002",
+  "incident_id": "inc_redis_002",
+  "source": "prometheus_fixture",
+  "step_seconds": 60,
+  "series": [
+    {
+      "evidence_id": "metric_redis_rejected_002",
+      "metric": "redis_rejected_connections_per_minute",
+      "labels": {"service": "redis-features", "namespace": "personalization"},
+      "unit": "connections_per_minute",
+      "points": [
+        {"timestamp": "2026-07-18T19:00:00Z", "value": 0},
+        {"timestamp": "2026-07-18T19:01:00Z", "value": 0},
+        {"timestamp": "2026-07-18T19:02:00Z", "value": 3},
+        {"timestamp": "2026-07-18T19:03:00Z", "value": 12},
+        {"timestamp": "2026-07-18T19:04:00Z", "value": 27},
+        {"timestamp": "2026-07-18T19:05:00Z", "value": 36},
+        {"timestamp": "2026-07-18T19:06:00Z", "value": 38},
+        {"timestamp": "2026-07-18T19:07:00Z", "value": 37}
+      ]
+    },
+    {
+      "evidence_id": "metric_redis_clients_002",
+      "metric": "redis_connected_clients",
+      "labels": {"service": "redis-features", "namespace": "personalization"},
+      "unit": "connections",
+      "points": [
+        {"timestamp": "2026-07-18T19:00:00Z", "value": 245},
+        {"timestamp": "2026-07-18T19:01:00Z", "value": 247},
+        {"timestamp": "2026-07-18T19:02:00Z", "value": 391},
+        {"timestamp": "2026-07-18T19:03:00Z", "value": 443},
+        {"timestamp": "2026-07-18T19:04:00Z", "value": 449},
+        {"timestamp": "2026-07-18T19:05:00Z", "value": 450},
+        {"timestamp": "2026-07-18T19:06:00Z", "value": 449},
+        {"timestamp": "2026-07-18T19:07:00Z", "value": 450}
+      ]
+    },
+    {
+      "evidence_id": "metric_recommendations_5xx_002",
+      "metric": "http_5xx_rate",
+      "labels": {"service": "recommendations-api", "namespace": "personalization"},
+      "unit": "ratio",
+      "points": [
+        {"timestamp": "2026-07-18T19:00:00Z", "value": 0.006},
+        {"timestamp": "2026-07-18T19:01:00Z", "value": 0.006},
+        {"timestamp": "2026-07-18T19:02:00Z", "value": 0.006},
+        {"timestamp": "2026-07-18T19:03:00Z", "value": 0.03},
+        {"timestamp": "2026-07-18T19:04:00Z", "value": 0.09},
+        {"timestamp": "2026-07-18T19:05:00Z", "value": 0.14},
+        {"timestamp": "2026-07-18T19:06:00Z", "value": 0.15},
+        {"timestamp": "2026-07-18T19:07:00Z", "value": 0.14}
+      ]
+    },
+    {
+      "evidence_id": "metric_recommendations_cpu_002",
+      "metric": "container_cpu_utilization",
+      "labels": {"service": "recommendations-api", "namespace": "personalization"},
+      "unit": "ratio",
+      "points": [
+        {"timestamp": "2026-07-18T19:00:00Z", "value": 0.36},
+        {"timestamp": "2026-07-18T19:01:00Z", "value": 0.37},
+        {"timestamp": "2026-07-18T19:02:00Z", "value": 0.38},
+        {"timestamp": "2026-07-18T19:03:00Z", "value": 0.39},
+        {"timestamp": "2026-07-18T19:04:00Z", "value": 0.38},
+        {"timestamp": "2026-07-18T19:05:00Z", "value": 0.39},
+        {"timestamp": "2026-07-18T19:06:00Z", "value": 0.38},
+        {"timestamp": "2026-07-18T19:07:00Z", "value": 0.37}
+      ]
+    }
+  ]
+}

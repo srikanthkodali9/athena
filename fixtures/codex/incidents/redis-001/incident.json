@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "incident_id": "inc_redis_001",
+  "scenario_id": "redis-001",
+  "family": "redis_connection_saturation",
+  "title": "Checkout API errors after deployment",
+  "trigger": {
+    "type": "heartbeat",
+    "observed_at": "2026-07-18T18:10:00Z",
+    "alert_ids": [
+      "alert_checkout_5xx_001",
+      "alert_checkout_latency_001"
+    ]
+  },
+  "service": {
+    "name": "checkout-api",
+    "namespace": "commerce",
+    "owner": "team-checkout",
+    "dependencies": [
+      "redis-cart",
+      "payments-api"
+    ]
+  },
+  "alerts": [
+    {
+      "evidence_id": "alert_checkout_5xx_001",
+      "name": "CheckoutHighErrorRate",
+      "severity": "critical",
+      "summary": "checkout-api 5xx rate is 0.18 over a five-minute window"
+    },
+    {
+      "evidence_id": "alert_checkout_latency_001",
+      "name": "CheckoutHighLatency",
+      "severity": "warning",
+      "summary": "checkout-api p95 latency is 1.82 seconds"
+    }
+  ],
+  "initial_hypothesis": "The checkout-api deployment introduced an application regression inside the service.",
+  "investigation": {
+    "round_1": {
+      "observability_question": "Did an internal checkout-api failure or a dependency signal occur first?",
+      "deterministic_tools": [
+        "query_metrics",
+        "query_logs",
+        "diff_deployment"
+      ],
+      "max_tool_calls": 5,
+      "allowed_datasets": [
+        "fixtures/codex/telemetry/redis-001/metrics.json",
+        "fixtures/codex/telemetry/redis-001/logs.jsonl",
+        "fixtures/codex/kubernetes/redis-001/deployment-before.yaml",
+        "fixtures/codex/kubernetes/redis-001/deployment-after.yaml"
+      ]
+    },
+    "mid_cycle": {
+      "allowed_decisions": [
+        "CONTINUE_PLAN",
+        "REVISE_PLAN"
+      ],
+      "maximum_revisions": 1,
+      "original_platform_question": "Did the checkout-api deployment introduce an unhealthy pod, resource, or application configuration change?"
+    },
+    "round_2": {
+      "specialist": "platform",
+      "question_source": "mid_cycle.confirmed_or_revised_platform_question",
+      "allowed_datasets": [
+        "fixtures/codex/kubernetes/redis-001/deployment-before.yaml",
+        "fixtures/codex/kubernetes/redis-001/deployment-after.yaml",
+        "fixtures/codex/kubernetes/redis-001/redis-state.json"
+      ]
+    }
+  },
+  "budgets": {
+    "max_specialists": 2,
+    "max_tool_calls": 7,
+    "max_main_model_calls": 4,
+    "max_total_tokens": 12000,
+    "deadline_seconds": 120
+  },
+  "security_mode": "fail_closed_for_tools_and_writes"
+}

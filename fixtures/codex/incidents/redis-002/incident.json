@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "incident_id": "inc_redis_002",
+  "scenario_id": "redis-002",
+  "family": "redis_connection_saturation",
+  "title": "Recommendations API errors after cache-client change",
+  "trigger": {
+    "type": "heartbeat",
+    "observed_at": "2026-07-18T19:10:00Z",
+    "alert_ids": [
+      "alert_recommendations_5xx_002"
+    ]
+  },
+  "service": {
+    "name": "recommendations-api",
+    "namespace": "personalization",
+    "owner": "team-personalization",
+    "dependencies": [
+      "redis-features",
+      "catalog-api"
+    ]
+  },
+  "alerts": [
+    {
+      "evidence_id": "alert_recommendations_5xx_002",
+      "name": "RecommendationsHighErrorRate",
+      "severity": "critical",
+      "summary": "recommendations-api 5xx rate is 0.14 over a five-minute window"
+    }
+  ],
+  "retrieved_knowledge": {
+    "evidence_id": "skill_sre_redis_connection_saturation",
+    "skill_id": "sre.redis.connection-saturation",
+    "minimum_status": "promoted",
+    "matching_triggers": [
+      "redis_rejected_connections > 0",
+      "api_5xx_rate > baseline",
+      "recent_pool_configuration_change"
+    ]
+  },
+  "initial_hypothesis": "The promoted Redis saturation skill may apply, but service-specific configuration must be verified.",
+  "investigation": {
+    "round_1": {
+      "observability_question": "Does the recommendations-api timeline match the promoted Redis connection-saturation fingerprint?",
+      "deterministic_tools": [
+        "query_metrics",
+        "diff_deployment",
+        "search_skills"
+      ],
+      "max_tool_calls": 3,
+      "allowed_datasets": [
+        "fixtures/codex/telemetry/redis-002/metrics.json",
+        "fixtures/codex/telemetry/redis-002/logs.jsonl",
+        "fixtures/codex/kubernetes/redis-002/deployment-before.yaml",
+        "fixtures/codex/kubernetes/redis-002/deployment-after.yaml"
+      ]
+    },
+    "mid_cycle": {
+      "allowed_decisions": [
+        "CONTINUE_PLAN",
+        "REVISE_PLAN"
+      ],
+      "maximum_revisions": 1,
+      "original_platform_question": "Did recommendations-api increase its Redis pool capacity beyond the redis-features client limit?"
+    },
+    "round_2": {
+      "specialist": "platform",
+      "question_source": "mid_cycle.confirmed_or_revised_platform_question",
+      "allowed_datasets": [
+        "fixtures/codex/kubernetes/redis-002/deployment-before.yaml",
+        "fixtures/codex/kubernetes/redis-002/deployment-after.yaml",
+        "fixtures/codex/kubernetes/redis-002/redis-state.json"
+      ]
+    }
+  },
+  "budgets": {
+    "max_specialists": 2,
+    "max_tool_calls": 4,
+    "max_main_model_calls": 4,
+    "max_total_tokens": 8500,
+    "deadline_seconds": 70
+  },
+  "security_mode": "fail_closed_for_tools_and_writes"
+}

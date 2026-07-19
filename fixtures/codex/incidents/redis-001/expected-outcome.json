@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "redis-001",
+  "test_oracle_only": true,
+  "mid_cycle_expectation": {
+    "decision": "REVISE_PLAN",
+    "reason_contains": [
+      "Redis rejected connections preceded checkout-api 5xx errors",
+      "checkout-api CPU and memory remained healthy"
+    ],
+    "original_platform_question": "Did the checkout-api deployment introduce an unhealthy pod, resource, or application configuration change?",
+    "revised_platform_question": "Did the checkout-api deployment increase Redis connection-pool capacity beyond the redis-cart client limit?"
+  },
+  "ground_truth": {
+    "root_cause": "checkout-api increased REDIS_POOL_MAX_SIZE from 30 to 120 across six replicas, allowing the service to exhaust redis-cart maxclients=500 when combined with existing consumers.",
+    "minimum_confidence": 0.85,
+    "recommendation": "Request approval to roll back the checkout-api pool-size change from 120 to 30 and verify rejected connections return to zero.",
+    "requires_approval": true
+  },
+  "required_evidence_ids": [
+    "metric_redis_rejected_001",
+    "metric_redis_clients_001",
+    "metric_checkout_5xx_001",
+    "diff_checkout_pool_001",
+    "k8s_redis_maxclients_001"
+  ],
+  "disallowed_conclusions": [
+    "checkout-api CPU saturation",
+    "payments-api outage",
+    "Redis server memory exhaustion"
+  ],
+  "learning_expectations": {
+    "create_candidate_skill": true,
+    "skill_id": "sre.redis.connection-saturation",
+    "expected_status_after_replay": "promoted",
+    "known_false_leads": [
+      {
+        "hypothesis": "An application regression inside checkout-api caused the 5xx errors.",
+        "invalidated_by": [
+          "metric_redis_rejected_001",
+          "metric_checkout_cpu_001",
+          "log_checkout_timeout_001"
+        ],
+        "reason": "Dependency rejection begins before API failures while application resources remain healthy."
+      }
+    ]
+  },
+  "measurement_targets": {
+    "investigation_time_seconds_max": 110,
+    "specialist_calls_max": 2,
+    "tool_calls_max": 7,
+    "main_model_calls_max": 4,
+    "unsupported_hypotheses_max": 1
+  }
+}

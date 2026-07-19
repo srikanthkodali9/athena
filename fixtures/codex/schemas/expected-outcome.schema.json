@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://athena.local/schemas/expected-outcome.schema.json",
+  "title": "Athena scenario test oracle",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "scenario_id",
+    "ground_truth",
+    "required_evidence_ids",
+    "learning_expectations",
+    "measurement_targets"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "scenario_id": {"type": "string"},
+    "ground_truth": {
+      "type": "object",
+      "required": ["root_cause", "minimum_confidence", "recommendation"]
+    },
+    "required_evidence_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"}
+    },
+    "learning_expectations": {"type": "object"},
+    "measurement_targets": {"type": "object"}
+  },
+  "additionalProperties": true
+}
