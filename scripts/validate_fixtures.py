@@ -12,7 +12,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = ROOT / "fixtures"
+FIXTURES = ROOT / "fixtures" / "codex"
 MANIFEST = FIXTURES / "manifest.json"
 
 SECRET_PATTERNS = {
@@ -215,12 +215,12 @@ def validate_no_real_secrets(errors: list[str]) -> None:
 def validate_repository() -> dict[str, int]:
     errors: list[str] = []
     if not MANIFEST.is_file():
-        raise FixtureValidationError("fixtures/manifest.json is missing")
+        raise FixtureValidationError("fixtures/codex/manifest.json is missing")
 
     try:
         manifest = load_json(MANIFEST)
     except json.JSONDecodeError as error:
-        raise FixtureValidationError(f"fixtures/manifest.json is invalid: {error}") from error
+        raise FixtureValidationError(f"fixtures/codex/manifest.json is invalid: {error}") from error
 
     json_count, jsonl_record_count = validate_json_catalog(errors)
     validate_manifest_references(manifest, errors)

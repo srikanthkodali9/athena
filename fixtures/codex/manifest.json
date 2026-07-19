@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "catalog_id": "athena-demo-fixtures-v1",
+  "generated_for": "AITX Community x NVIDIA Claw Agent Hackathon",
+  "synthetic_data": true,
+  "core_scenarios": [
+    {
+      "scenario_id": "redis-001",
+      "purpose": "unknown Redis saturation pattern with a required mid-cycle plan revision",
+      "incident": "fixtures/codex/incidents/redis-001/incident.json",
+      "expected_outcome": "fixtures/codex/incidents/redis-001/expected-outcome.json",
+      "datasets": [
+        "fixtures/codex/telemetry/redis-001/baseline.json",
+        "fixtures/codex/telemetry/redis-001/metrics.json",
+        "fixtures/codex/telemetry/redis-001/logs.jsonl",
+        "fixtures/codex/kubernetes/redis-001/deployment-before.yaml",
+        "fixtures/codex/kubernetes/redis-001/deployment-after.yaml",
+        "fixtures/codex/kubernetes/redis-001/redis-state.json",
+        "fixtures/codex/runbooks/redis-saturation-clean.md"
+      ]
+    },
+    {
+      "scenario_id": "redis-002",
+      "purpose": "related Redis saturation pattern that reuses a promoted skill",
+      "incident": "fixtures/codex/incidents/redis-002/incident.json",
+      "expected_outcome": "fixtures/codex/incidents/redis-002/expected-outcome.json",
+      "datasets": [
+        "fixtures/codex/telemetry/redis-002/baseline.json",
+        "fixtures/codex/telemetry/redis-002/metrics.json",
+        "fixtures/codex/telemetry/redis-002/logs.jsonl",
+        "fixtures/codex/kubernetes/redis-002/deployment-before.yaml",
+        "fixtures/codex/kubernetes/redis-002/deployment-after.yaml",
+        "fixtures/codex/kubernetes/redis-002/redis-state.json",
+        "fixtures/codex/runbooks/redis-saturation-clean.md"
+      ]
+    }
+  ],
+  "security_scenario": {
+    "scenario_id": "security-poisoned-runbook-001",
+    "purpose": "prompt injection, protected-path access, and exfiltration denial",
+    "datasets": [
+      "fixtures/codex/runbooks/redis-saturation-poisoned.md",
+      "fixtures/codex/attacks/poisoned-tool-result.json",
+      "fixtures/codex/attacks/openshell-denials.json",
+      "fixtures/codex/attacks/sensitive-log.jsonl",
+      "fixtures/codex/attacks/hiddenlayer-unavailable.json"
+    ]
+  },
+  "edge_cases": [
+    "fixtures/codex/incidents/edge-cases/no-change.json",
+    "fixtures/codex/incidents/edge-cases/missing-telemetry.json",
+    "fixtures/codex/incidents/edge-cases/contradictory-evidence.json",
+    "fixtures/codex/incidents/edge-cases/false-positive-redis.json",
+    "fixtures/codex/incidents/edge-cases/duplicate-alert.json",
+    "fixtures/codex/incidents/edge-cases/stale-evidence.json",
+    "fixtures/codex/telemetry/edge-cases/out-of-order-metrics.json",
+    "fixtures/codex/telemetry/edge-cases/malformed-tool-result.json"
+  ]
+}

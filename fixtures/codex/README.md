@@ -37,7 +37,7 @@ The edge-case set covers:
 ## Directory layout
 
 ```text
-fixtures/
+fixtures/codex/
 ├── manifest.json
 ├── schemas/
 ├── incidents/

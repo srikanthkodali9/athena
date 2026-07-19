@@ -29,7 +29,7 @@ class DemoFixtureDatasetTests(unittest.TestCase):
         self.assertIn("Fixture validation passed", result.stdout)
 
     def test_manifest_references_two_core_scenarios(self) -> None:
-        manifest = load_json("fixtures/manifest.json")
+        manifest = load_json("fixtures/codex/manifest.json")
         scenario_ids = [item["scenario_id"] for item in manifest["core_scenarios"]]
         self.assertEqual(scenario_ids, ["redis-001", "redis-002"])
         for scenario in manifest["core_scenarios"]:
@@ -39,8 +39,8 @@ class DemoFixtureDatasetTests(unittest.TestCase):
                 self.assertTrue((ROOT / dataset).is_file(), dataset)
 
     def test_unknown_incident_forces_one_plan_revision(self) -> None:
-        incident = load_json("fixtures/incidents/redis-001/incident.json")
-        expected = load_json("fixtures/incidents/redis-001/expected-outcome.json")
+        incident = load_json("fixtures/codex/incidents/redis-001/incident.json")
+        expected = load_json("fixtures/codex/incidents/redis-001/expected-outcome.json")
         self.assertEqual(expected["mid_cycle_expectation"]["decision"], "REVISE_PLAN")
         self.assertEqual(incident["investigation"]["mid_cycle"]["maximum_revisions"], 1)
         self.assertNotEqual(
@@ -50,9 +50,9 @@ class DemoFixtureDatasetTests(unittest.TestCase):
         self.assertTrue(expected["learning_expectations"]["known_false_leads"])
 
     def test_learned_incident_reuses_skill_and_improves_targets(self) -> None:
-        first = load_json("fixtures/incidents/redis-001/expected-outcome.json")
-        learned = load_json("fixtures/incidents/redis-002/expected-outcome.json")
-        incident = load_json("fixtures/incidents/redis-002/incident.json")
+        first = load_json("fixtures/codex/incidents/redis-001/expected-outcome.json")
+        learned = load_json("fixtures/codex/incidents/redis-002/expected-outcome.json")
+        incident = load_json("fixtures/codex/incidents/redis-002/incident.json")
 
         self.assertTrue(learned["learning_expectations"]["reuse_promoted_skill"])
         self.assertEqual(
@@ -74,16 +74,16 @@ class DemoFixtureDatasetTests(unittest.TestCase):
 
     def test_security_fixture_uses_synthetic_non_routable_targets(self) -> None:
         poisoned_runbook = (
-            ROOT / "fixtures/runbooks/redis-saturation-poisoned.md"
+            ROOT / "fixtures/codex/runbooks/redis-saturation-poisoned.md"
         ).read_text(encoding="utf-8")
-        poisoned_result = load_json("fixtures/attacks/poisoned-tool-result.json")
+        poisoned_result = load_json("fixtures/codex/attacks/poisoned-tool-result.json")
 
         self.assertIn("/demo/protected/credentials", poisoned_runbook)
         self.assertIn("example.invalid", poisoned_runbook)
         self.assertEqual(poisoned_result["expected"]["policy_action"], "quarantine")
         self.assertFalse(poisoned_result["expected"]["persistent_memory_allowed"])
 
-        denials = load_json("fixtures/attacks/openshell-denials.json")
+        denials = load_json("fixtures/codex/attacks/openshell-denials.json")
         categories = {attempt["category"] for attempt in denials["attempts"]}
         self.assertEqual(categories, {"filesystem_read", "network_egress"})
         self.assertTrue(
@@ -91,10 +91,10 @@ class DemoFixtureDatasetTests(unittest.TestCase):
         )
 
     def test_edge_cases_cover_wait_escalation_revision_and_revalidation(self) -> None:
-        no_change = load_json("fixtures/incidents/edge-cases/no-change.json")
-        missing = load_json("fixtures/incidents/edge-cases/missing-telemetry.json")
-        contradiction = load_json("fixtures/incidents/edge-cases/contradictory-evidence.json")
-        stale = load_json("fixtures/incidents/edge-cases/stale-evidence.json")
+        no_change = load_json("fixtures/codex/incidents/edge-cases/no-change.json")
+        missing = load_json("fixtures/codex/incidents/edge-cases/missing-telemetry.json")
+        contradiction = load_json("fixtures/codex/incidents/edge-cases/contradictory-evidence.json")
+        stale = load_json("fixtures/codex/incidents/edge-cases/stale-evidence.json")
 
         self.assertEqual(no_change["expected"]["decision"], "WAIT")
         self.assertEqual(no_change["expected"]["model_calls"], 0)
@@ -104,7 +104,7 @@ class DemoFixtureDatasetTests(unittest.TestCase):
         self.assertEqual(stale["expected"]["action"], "REVALIDATE")
 
     def test_test_oracles_are_not_runtime_datasets(self) -> None:
-        manifest = load_json("fixtures/manifest.json")
+        manifest = load_json("fixtures/codex/manifest.json")
         for scenario in manifest["core_scenarios"]:
             expected = load_json(scenario["expected_outcome"])
             self.assertTrue(expected["test_oracle_only"])
@@ -113,13 +113,13 @@ class DemoFixtureDatasetTests(unittest.TestCase):
     def test_redis_rejections_precede_service_errors(self) -> None:
         checks = [
             (
-                "fixtures/telemetry/redis-001/metrics.json",
+                "fixtures/codex/telemetry/redis-001/metrics.json",
                 "metric_redis_rejected_001",
                 "metric_checkout_5xx_001",
                 0.01,
             ),
             (
-                "fixtures/telemetry/redis-002/metrics.json",
+                "fixtures/codex/telemetry/redis-002/metrics.json",
                 "metric_redis_rejected_002",
                 "metric_recommendations_5xx_002",
                 0.006,

@@ -19,10 +19,10 @@ Build UI only after the fixture events and API response shapes are stable.
 ## Owned paths
 
 - `app/ui/`
-- `fixtures/incidents/`
-- `fixtures/telemetry/`
-- `fixtures/kubernetes/`
-- `fixtures/runbooks/`
+- `fixtures/codex/incidents/`
+- `fixtures/codex/telemetry/`
+- `fixtures/codex/kubernetes/`
+- `fixtures/codex/runbooks/`
 - `scripts/`
 - `tests/demo/`
 
