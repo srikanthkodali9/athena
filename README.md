@@ -1,5 +1,7 @@
 # Athena
 
+This project was build for AITX Nvidia Hackathon 
+
 Athena is a heartbeat-driven, self-improving SRE intelligence. It detects
 operational changes, runs bounded investigations with specialist models and
 deterministic tools, and turns verified incident outcomes into replay-validated
