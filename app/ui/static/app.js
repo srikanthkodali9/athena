@@ -45,7 +45,7 @@ function table(head, rows) {
 }
 const decisionTag = (d) => d === "ESCALATE"
   ? `<span class="tag crit"><span class="dot"></span>${esc(d)}</span>`
-  : tag(d || "—", "dim");
+  : tag(d || "—", d === "RESOLVED" ? "ok" : "dim");
 
 // --- pages ----------------------------------------------------------------
 
@@ -96,29 +96,36 @@ function renderDetail(d, id) {
       <div style="font-size:12px;color:var(--ink-2);margin-top:5px">${esc(skill.title)}</div>
       <div class="chips" style="margin-top:10px">${tag("HL · " + skill.hiddenlayer_status, "ok")}${tag("replay " + (skill.replay.filter(r=>r.passed).length) + "/" + skill.replay.length, "ok")}</div>
     </div></div>` : "";
+  const resolved = c.decision === "RESOLVED";
+  const statusText = resolved ? `Resolved · ${c.state}`
+    : c.decision === "ESCALATE" ? "Escalated" : c.state;
+  const summary = resolved
+    ? `Athena verified recovery after incident two and persisted <b>RESOLVED</b> with state <b>${esc(c.state)}</b>. The deterministic terminal path made <b>${c.model_calls}</b> model calls.`
+    : `Athena investigated across ${c.specialists >= 2 ? "two bounded rounds" : "a bounded investigation"}, registered <b>${c.evidence_count}</b> deterministic evidence facts, ${revised ? "<b>rewrote its own hypothesis mid-cycle</b>, " : ""}and reached <b>${esc(c.decision)}</b> at confidence <b>${c.confidence != null ? c.confidence.toFixed(2) : "—"}</b>.`;
+  const timeline = resolved
+    ? card("Recovery timeline", `<span class="h-r">${esc(c.cycle_id)}</span>`, `<div class="b"><div class="tl">
+        <div class="e agent"><span class="mk">1</span><div><div class="t">Recovery signal received <span class="by">heartbeat</span></div><div class="d">${esc(c.signal || "—")} · classified <b>${esc(c.change_class || "—")}</b>.</div></div></div>
+        <div class="e win"><span class="mk">✓</span><div><div class="t">Incident resolved</div><div class="d">Decision <b style="color:var(--ok)">RESOLVED</b> persisted with state <b>${esc(c.state)}</b>; no model investigation was required.</div></div></div>
+      </div></div>`)
+    : card("Investigation timeline", `<span class="h-r">${esc(c.cycle_id)}</span>`, `<div class="b"><div class="tl">
+        <div class="e agent"><span class="mk">1</span><div><div class="t">Change detected <span class="by">heartbeat</span></div><div class="d">${esc(c.signal || "—")} · classified <b>${esc(c.change_class || "—")}</b>.</div></div></div>
+        <div class="e agent"><span class="mk">2</span><div><div class="t">Investigation planned <span class="by">strategic tier</span></div><div class="d">Bounded plan · ${c.specialists} specialist(s), ${c.tool_calls} tool call(s).</div></div></div>
+        <div class="e"><span class="mk">3</span><div><div class="t">Evidence gathered</div><div class="d">Deterministic facts registered with provenance:</div><div class="evs">${c.evidence_ids.map((e) => `<span class="ev">${esc(e)}</span>`).join("")}</div></div></div>
+        ${revStep}
+        <div class="e win"><span class="mk">✓</span><div><div class="t">Synthesis &amp; self-critique <span class="by">strategic tier</span></div><div class="d">Root cause confirmed at confidence <b>${c.confidence != null ? c.confidence.toFixed(2) : "—"}</b> → decision <b style="color:var(--crit)">${esc(c.decision)}</b>.</div></div></div>
+      </div></div>`);
 
   $("page-detail").innerHTML = `
     <div class="badges">
-      <span class="status"><span class="dot"></span>${c.decision === "ESCALATE" ? "Escalated" : esc(c.state)}</span>
+      <span class="status${resolved ? " ok" : ""}"><span class="dot"></span>${esc(statusText)}</span>
       ${tag(c.fixture, "brand")}${tag("trigger · " + c.trigger, "dim")}
     </div>
     <h1 class="ptitle" style="font-size:21px">${esc(c.signal || c.fixture)}</h1>
     <p class="psub" style="margin-bottom:16px">Detected by a heartbeat signal — no investigation prompt from a user.</p>
     <div class="layout">
       <div>
-        <div class="card"><div class="b"><p class="lead" style="font-size:13.5px">
-          Athena investigated across ${c.specialists >= 2 ? "two bounded rounds" : "a bounded investigation"},
-          registered <b>${c.evidence_count}</b> deterministic evidence facts,
-          ${revised ? "<b>rewrote its own hypothesis mid-cycle</b>, " : ""}and reached
-          <b>${esc(c.decision)}</b> at confidence <b>${c.confidence != null ? c.confidence.toFixed(2) : "—"}</b>.
-        </p></div></div>
-        ${card("Investigation timeline", `<span class="h-r">${esc(c.cycle_id)}</span>`, `<div class="b"><div class="tl">
-          <div class="e agent"><span class="mk">1</span><div><div class="t">Change detected <span class="by">heartbeat</span></div><div class="d">${esc(c.signal || "—")} · classified <b>${esc(c.change_class || "—")}</b>.</div></div></div>
-          <div class="e agent"><span class="mk">2</span><div><div class="t">Investigation planned <span class="by">strategic tier</span></div><div class="d">Bounded plan · ${c.specialists} specialist(s), ${c.tool_calls} tool call(s).</div></div></div>
-          <div class="e"><span class="mk">3</span><div><div class="t">Evidence gathered</div><div class="d">Deterministic facts registered with provenance:</div><div class="evs">${c.evidence_ids.map((e) => `<span class="ev">${esc(e)}</span>`).join("")}</div></div></div>
-          ${revStep}
-          <div class="e win"><span class="mk">✓</span><div><div class="t">Synthesis &amp; self-critique <span class="by">strategic tier</span></div><div class="d">Root cause confirmed at confidence <b>${c.confidence != null ? c.confidence.toFixed(2) : "—"}</b> → decision <b style="color:var(--crit)">${esc(c.decision)}</b>.</div></div></div>
-        </div></div>`)}
+        <div class="card"><div class="b"><p class="lead" style="font-size:13.5px">${summary}</p></div></div>
+        ${timeline}
       </div>
       <aside class="rail">
         <div class="card"><div class="h"><h2>Properties</h2></div><div class="b" style="padding:6px 0"><div class="props">
@@ -223,7 +230,7 @@ function renderMetrics(d) {
     <tr><td class="role">${esc(i.role)}</td><td class="mono2 muted">${esc(i.model_id)}</td>
       <td class="r">${num(i.prompt_tokens)}</td><td class="r">${num(i.completion_tokens)}</td><td class="r">${num(i.total_tokens)}</td>
       <td>${i.degraded ? tag("degraded", "warn") : tag("ok", "ok")}</td></tr>`).join("") : "";
-  const two = d.incidents.find((i) => i.fixture !== (one && one.fixture));
+  const two = d.incident_two;
   $("page-metrics").innerHTML =
     `<div class="phead"><div><h1 class="ptitle">Metrics</h1>
       <p class="psub">Per-cycle model, tool, and token accounting — and the first-vs-learned improvement comparison.</p></div></div>` +

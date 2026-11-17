@@ -33,6 +33,7 @@ def test_decision_enum_has_all_values():
     names = {d.value for d in Decision}
     assert names == {
         "WAIT",
+        "RESOLVED",
         "INVESTIGATE",
         "ESCALATE",
         "CONTINUE",

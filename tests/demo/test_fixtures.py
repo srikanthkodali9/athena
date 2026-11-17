@@ -41,18 +41,29 @@ def test_no_real_secret_material():
             )
 
 
-@pytest.mark.parametrize("fixture", ["redis-incident-001", "redis-incident-002"])
+_INCIDENT_FILES = {
+    "redis-incident-001": "incident-one.json",
+    "redis-incident-002": "incident-two.json",
+    "redis-incident-003": "incident-three.json",
+    "redis-incident-004": "incident-four.json",
+}
+
+
+@pytest.mark.parametrize("fixture", list(_INCIDENT_FILES))
 def test_incident_fixture_shape_and_ground_truth(fixture):
-    name = "incident-one.json" if fixture.endswith("001") else "incident-two.json"
-    data = _load(f"incidents/{name}")
+    data = _load(f"incidents/{_INCIDENT_FILES[fixture]}")
     assert data["fixture"] == fixture
     assert data["synthetic"] is True
     assert data["contains_real_secret"] is False
     gt = data["ground_truth"]
-    assert gt["expected_decision"] == "ESCALATE"
-    assert gt["expected_evidence_ids"], "ground truth must list expected evidence IDs"
+    expected_decision = "RESOLVED" if fixture.endswith("003") else "ESCALATE"
+    assert gt["expected_decision"] == expected_decision
+    if "expected_state" in gt:
+        assert gt["expected_state"] == "completed"
     # Every expected evidence id must actually be producible by the fixture.
-    ev_ids = [m["id"] for m in data["metrics"]] + [data["deployment_diff"]["id"]]
+    ev_ids = [m["id"] for m in data["metrics"]]
+    if data.get("deployment_diff"):
+        ev_ids.append(data["deployment_diff"]["id"])
     for eid in gt["expected_evidence_ids"]:
         assert eid in ev_ids, f"{eid} not present in fixture evidence"
 
@@ -77,7 +88,7 @@ def test_incident_two_declares_skill_reuse():
 def test_tool_registry_produces_expected_evidence_ids():
     """The canonical ground-truth IDs match what the running tools emit."""
     registry = build_default_registry()
-    for fixture in ("redis-incident-001", "redis-incident-002"):
+    for fixture in _INCIDENT_FILES:
         assert tool_fixtures.known_fixture(fixture)
         metrics = registry.call("query_metrics", {"fixture": fixture})
         diff = registry.call("diff_deployment", {"fixture": fixture})
@@ -87,6 +98,19 @@ def test_tool_registry_produces_expected_evidence_ids():
         if fixture == "redis-incident-001":
             gt = set(_load("incidents/incident-one.json")["ground_truth"]["expected_evidence_ids"])
             assert gt == produced, f"tool evidence {produced} != ground truth {gt}"
+
+
+def test_incident_three_is_resolved_after_incident_two_without_model_work():
+    data = _load("incidents/incident-three.json")
+    assert data["change_signal"]["change_class"] == "irrelevant"
+    assert data["change_signal"]["terminal_decision"] == "RESOLVED"
+    assert data["ground_truth"] == {
+        "root_cause": "Incident two is no longer active; checkout and Redis remain at baseline.",
+        "expected_evidence_ids": [],
+        "expected_decision": "RESOLVED",
+        "expected_state": "completed",
+        "expected_model_calls": 0,
+    }
 
 
 def test_runbooks_present_clean_and_poisoned():

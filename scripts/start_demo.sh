@@ -18,13 +18,15 @@ export ATHENA_ENV="${ATHENA_ENV:-demo}"
 export ATHENA_INFERENCE_MODE="${ATHENA_INFERENCE_MODE:-mock}"
 export ATHENA_SECURITY_MODE="${ATHENA_SECURITY_MODE:-mock}"
 export ATHENA_STATE_DB_PATH="${ATHENA_STATE_DB_PATH:-.athena/athena.db}"
+export ATHENA_DEMO_INCIDENT_DELAY_SECONDS="${ATHENA_DEMO_INCIDENT_DELAY_SECONDS:-30}"
 HOST="${ATHENA_HOST:-127.0.0.1}"
 PORT="${ATHENA_PORT:-8000}"
 
 ./scripts/reset_demo.sh
 
 echo "start_demo: env=$ATHENA_ENV inference=$ATHENA_INFERENCE_MODE security=$ATHENA_SECURITY_MODE"
+echo "start_demo: incident delay=${ATHENA_DEMO_INCIDENT_DELAY_SECONDS}s (4 incidents)"
 echo "start_demo: dashboard -> http://$HOST:$PORT/dashboard/"
-echo "start_demo: press 'Run both demos', or run ./scripts/run_replay.sh for the standard fixtures only."
+echo "start_demo: press 'Run cycle' to run four incidents plus edge-case validation."
 
 exec uv run uvicorn "app.ui.server:create_demo_app" --factory --host "$HOST" --port "$PORT"

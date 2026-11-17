@@ -13,6 +13,7 @@ same SQLite store.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, Optional
@@ -27,6 +28,14 @@ _FIXTURES = _REPO_ROOT / "fixtures"
 
 INCIDENT_ONE_FIXTURE = "redis-incident-001"
 INCIDENT_TWO_FIXTURE = "redis-incident-002"
+INCIDENT_THREE_FIXTURE = "redis-incident-003"
+INCIDENT_FOUR_FIXTURE = "redis-incident-004"
+INCIDENT_FIXTURES = (
+    INCIDENT_ONE_FIXTURE,
+    INCIDENT_TWO_FIXTURE,
+    INCIDENT_THREE_FIXTURE,
+    INCIDENT_FOUR_FIXTURE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -197,17 +206,32 @@ def comparison_from_store(
 
 
 async def run_full_demo(ctx: AppContext, min_improved: int = 2) -> dict[str, Any]:
-    """Run incident one, incident two, and the security drill; return a summary.
+    """Run four incidents and the security drill; return a summary.
 
     All numbers in the returned ``comparison`` come from persisted cycle records.
     """
-    first_id = await run_incident(ctx, INCIDENT_ONE_FIXTURE, "demo: incident one")
-    learned_id = await run_incident(ctx, INCIDENT_TWO_FIXTURE, "demo: incident two (reuse)")
+    reasons = (
+        "demo: incident one",
+        "demo: incident two (reuse)",
+        "demo: incident three (resolved recovery after incident two)",
+        "demo: incident four (repeat pattern)",
+    )
+    cycle_ids: list[str] = []
+    delay_seconds = ctx.settings.demo_incident_delay_seconds
+    for fixture, reason in zip(INCIDENT_FIXTURES, reasons):
+        cycle_ids.append(await run_incident(ctx, fixture, reason))
+        if delay_seconds > 0:
+            await asyncio.sleep(delay_seconds)
+
+    first_id, learned_id, third_id, fourth_id = cycle_ids
     drill = run_security_drill(ctx, cycle_id=first_id)
     comparison = comparison_from_store(ctx, first_id, learned_id, min_improved=min_improved)
     return {
         "incident_one_cycle_id": first_id,
         "incident_two_cycle_id": learned_id,
+        "incident_three_cycle_id": third_id,
+        "incident_four_cycle_id": fourth_id,
+        "incident_cycle_ids": cycle_ids,
         "security_drill": drill,
         "comparison": comparison,
     }

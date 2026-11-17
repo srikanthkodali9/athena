@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from app.athena.schemas import ChangeClass
+from app.athena.schemas import ChangeClass, Decision
 from app.tools import fixtures
 
 
@@ -25,6 +25,7 @@ class ChangeDetectionResult:
     changes_detected: list[dict] = field(default_factory=list)
     skip_reason: Optional[str] = None
     start_reason: Optional[str] = None
+    terminal_decision: Optional[Decision] = None
 
     @property
     def investigation_required(self) -> bool:
@@ -69,14 +70,29 @@ def detect_changes(fixture: Optional[str]) -> ChangeDetectionResult:
         "kind": signal.get("kind", "unknown"),
         "summary": signal.get("summary", ""),
     }
-    change_class = (
-        ChangeClass.security_sensitive
-        if signal.get("security_sensitive")
-        else ChangeClass.meaningful
+    explicit_class = signal.get("change_class")
+    if explicit_class is not None:
+        change_class = ChangeClass(explicit_class)
+    else:
+        change_class = (
+            ChangeClass.security_sensitive
+            if signal.get("security_sensitive")
+            else ChangeClass.meaningful
+        )
+    terminal_decision = (
+        Decision(signal["terminal_decision"])
+        if signal.get("terminal_decision") is not None
+        else None
     )
     return ChangeDetectionResult(
         change_class=change_class,
         signals_checked=list(MONITORED_SIGNALS),
         changes_detected=[change],
+        skip_reason=(
+            signal.get("skip_reason", "fixture_change_is_not_meaningful")
+            if change_class is ChangeClass.irrelevant
+            else None
+        ),
         start_reason=f"{change['kind']} from {change['source']}",
+        terminal_decision=terminal_decision,
     )

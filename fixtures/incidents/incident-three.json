@@ -1,0 +1,26 @@
+{
+  "fixture": "redis-incident-003",
+  "title": "Incident Three — verified recovery after incident two",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "detected_at": "2026-07-19T14:33:00Z",
+  "service": "checkout",
+  "change_signal": {
+    "source": "prometheus",
+    "kind": "recovery_verification",
+    "summary": "Checkout and Redis signals returned to baseline after incident two.",
+    "security_sensitive": false,
+    "change_class": "irrelevant",
+    "terminal_decision": "RESOLVED",
+    "skip_reason": "recovery_verified_after_incident_two"
+  },
+  "metrics": [],
+  "deployment_diff": null,
+  "ground_truth": {
+    "root_cause": "Incident two is no longer active; checkout and Redis remain at baseline.",
+    "expected_evidence_ids": [],
+    "expected_decision": "RESOLVED",
+    "expected_state": "completed",
+    "expected_model_calls": 0
+  }
+}

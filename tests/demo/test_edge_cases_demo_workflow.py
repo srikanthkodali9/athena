@@ -143,6 +143,15 @@ def test_run_cycle_refreshes_dashboard_before_reenabling_button(demo_client):
     assert handler.index("await refresh()") < handler.index("btn.disabled = false")
 
 
+def test_dashboard_shows_resolved_and_completed_together(demo_client):
+    response = demo_client.get("/dashboard/app.js")
+    assert response.status_code == 200, response.text
+
+    script = response.text
+    assert 'd === "RESOLVED" ? "ok"' in script
+    assert 'Resolved · ${c.state}' in script
+
+
 def test_edge_cases_demo_script_returns_success_and_json():
     completed = subprocess.run(
         [sys.executable, "scripts/edge_cases_demo.py", "--json"],

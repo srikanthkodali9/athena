@@ -5,7 +5,7 @@ gets the exact same system / heartbeat / metrics / security routes, request-id
 middleware, error handling, and a single lifespan-built ``AppContext``. On top
 of that it adds:
 
-* ``POST /api/v1/demo/run``      — drive the standard incident/security story
+* ``POST /api/v1/demo/run``      — drive the four-incident/security story
   and the isolated ``fixtures/edge_cases`` workflow from the dashboard's one button.
 * ``GET  /api/v1/demo/state``    — one aggregate read the dashboard renders,
   combining persisted standard-demo records with the last in-memory edge-cases result.
@@ -40,7 +40,7 @@ _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 router = APIRouter(prefix="/api/v1/demo", tags=["demo"])
 
-_DEMO_FIXTURES = (demo_runner.INCIDENT_ONE_FIXTURE, demo_runner.INCIDENT_TWO_FIXTURE)
+_DEMO_FIXTURES = demo_runner.INCIDENT_FIXTURES
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +354,7 @@ async def demo_console(
         "config": ctx.settings.sanitized_status(),
         "incidents": incidents,
         "incident_one": _incident_view(first) if first else None,
+        "incident_two": _incident_view(learned) if learned else None,
         "skills": _skills_view(ctx),
         "security": security,
         "comparison": comparison,

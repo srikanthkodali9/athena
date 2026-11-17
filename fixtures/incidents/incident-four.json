@@ -1,0 +1,73 @@
+{
+  "fixture": "redis-incident-004",
+  "title": "Incident Four — Redis saturation in payments reuses the learned skill",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "detected_at": "2026-07-19T15:43:00Z",
+  "service": "payments",
+  "change_signal": {
+    "source": "prometheus",
+    "kind": "metric_threshold_breach",
+    "summary": "Payments 5xx ratio rose while Redis clients reached 90% of the limit.",
+    "security_sensitive": false
+  },
+  "metrics": [
+    {
+      "id": "ev_metric-payments-5xx-41",
+      "type": "metric",
+      "source": "prometheus",
+      "provenance": {
+        "query": "rate(http_requests_total{status=~\"5..\",service=\"payments\"}[5m])",
+        "window": "5m",
+        "service": "payments"
+      },
+      "data": {"before": 0.005, "value": 0.07, "unit": "ratio"}
+    },
+    {
+      "id": "ev_metric-redis-conn-42",
+      "type": "metric",
+      "source": "prometheus",
+      "provenance": {
+        "query": "redis_connected_clients",
+        "window": "5m",
+        "service": "redis"
+      },
+      "data": {"before": 250, "value": 4500, "limit": 5000, "unit": "count"}
+    }
+  ],
+  "deployment_diff": {
+    "id": "ev_diff-payments-deploy-11",
+    "type": "diff",
+    "source": "kubernetes",
+    "provenance": {
+      "object": "deployment/payments",
+      "from_revision": "payments-808",
+      "to_revision": "payments-809",
+      "committed_at": "2026-07-19T15:42:00Z"
+    },
+    "data": {
+      "changed": [
+        {
+          "field": "spec.template.spec.containers[0].env.REDIS_POOL_MAX",
+          "from": "80",
+          "to": "420"
+        }
+      ],
+      "image_changed": false
+    }
+  },
+  "ground_truth": {
+    "root_cause": "Deployment payments-809 increased its Redis pool ceiling and reproduced the validated saturation pattern.",
+    "expected_evidence_ids": [
+      "ev_metric-payments-5xx-41",
+      "ev_metric-redis-conn-42",
+      "ev_diff-payments-deploy-11"
+    ],
+    "expected_decision": "ESCALATE",
+    "expected_state": "completed"
+  },
+  "reuses_skill": {
+    "skill_id_hint": "skill_redis_pool_saturation",
+    "expected_prior_skill_reused": true
+  }
+}

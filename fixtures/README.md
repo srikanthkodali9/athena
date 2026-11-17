@@ -11,8 +11,10 @@ value is an obvious placeholder.
 |---|---|
 | `incidents/incident-one.json` | Incident one — Redis connection saturation; ground truth + expected evidence IDs + the REVISE_PLAN contract. |
 | `incidents/incident-two.json` | Incident two — related Redis pattern in another service (checkout); skill-reuse contract. |
-| `telemetry/redis-incident-00{1,2}.json` | Timestamped Prometheus-style series backing each incident. |
-| `kubernetes/redis-incident-00{1,2}.json` | Read-only deployment views (env change, replicas, derived saturation math). |
+| `incidents/incident-three.json` | Incident three — verified recovery immediately after incident two; zero-model-call RESOLVED path. |
+| `incidents/incident-four.json` | Incident four — another service recurrence proving continued skill reuse. |
+| `telemetry/redis-incident-00{1,2,3,4}.json` | Timestamped Prometheus-style series backing each incident. |
+| `kubernetes/redis-incident-00{1,2,3,4}.json` | Read-only deployment views backing each incident. |
 | `runbooks/redis_latency_clean.md` | Clean, trusted, human-owned source runbook. |
 | `runbooks/redis_latency_poisoned.md` | Poisoned runbook (§21.3 attack) — quarantine target. |
 | `attacks/*` | (security_expert owned) credential-access + egress OpenShell drill requests, and the original poisoned runbook. |
@@ -21,14 +23,12 @@ value is an obvious placeholder.
 
 The core tool registry (`app/tools/query_metrics`, `diff_deployment`) reads
 `app/tools/fixtures.py`, **not** this directory (see the DEPENDENCY NOTE in that
-file). `app/tools/fixtures.py` already ships `redis-incident-001` and
-`redis-incident-002` with evidence IDs matching `incident-one.json`. The demo
-runs today against those. The files here are the **canonical** shapes with full
-ground truth; `incident-two.json` additionally models the PRD's "another
-service" (checkout) that core should adopt at reconciliation. Keep the two in
-sync — the evidence IDs and `REDIS_POOL_MAX` env change are the contract.
+file). `app/tools/fixtures.py` ships `redis-incident-001` through
+`redis-incident-004`. The demo runs against those deterministic records. The
+files here are the **canonical** shapes with full ground truth. Keep runtime and
+canonical evidence IDs synchronized.
 
-## Ground truth (both incidents)
+## Ground truth
 
 - **Root cause:** a deployment raised `REDIS_POOL_MAX`; pool size x replicas
   approached the Redis `maxclients` ceiling; connection rejection surfaced as API
@@ -36,7 +36,9 @@ sync — the evidence IDs and `REDIS_POOL_MAX` env change are the contract.
   (9900/10000 observed). Incident two: `deployment/checkout`, 120 -> 600.
 - **Expected evidence (incident one):** `ev_metric-api-5xx-19`,
   `ev_metric-redis-conn-20`, `ev_diff-api-deploy-7` (3 total).
-- **Expected decision:** `ESCALATE` (confidence >= 0.85).
+- **Expected decisions:** incidents one and two `ESCALATE`; incident three
+  `RESOLVED` with `state=completed` and zero model calls; incident four
+  `ESCALATE`.
 
 ## REQUIRED core change to force mid-cycle REVISE_PLAN (flagged, not applied)
 

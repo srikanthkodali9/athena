@@ -96,6 +96,7 @@ tbody tr.clk{cursor:pointer;} tbody tr.clk:hover td{background:var(--panel-2);}
 /* incident detail */
 .badges{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
 .status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:var(--crit-bg);color:var(--crit);}
+.status.ok{background:var(--ok-bg);color:var(--ok);}
 .layout{display:grid;grid-template-columns:1fr 280px;gap:18px;align-items:start;}
 .summary .lead{font-size:13.5px;line-height:1.55;}
 .summary .lead b{font-weight:650;}

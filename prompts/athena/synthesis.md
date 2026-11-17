@@ -19,7 +19,7 @@ RULES:
 - Resolve contradictions explicitly; state which evidence outweighs which.
 - Assign a calibrated confidence. Do not exceed 0.85 unless a containment action
   is identified and cited.
-- Recommend WAIT / INVESTIGATE / ESCALATE / CONTAIN / REQUEST_APPROVAL only;
+- Recommend WAIT / RESOLVED / INVESTIGATE / ESCALATE / CONTAIN / REQUEST_APPROVAL only;
   never mutate production directly.
 - Return a SINGLE valid JSON object ONLY (no prose, no <think> block).
 
@@ -29,6 +29,6 @@ OUTPUT SCHEMA:
   "supporting_evidence_ids": ["ev_..."],
   "contradictions_resolved": ["string"],
   "confidence": 0.0,
-  "recommendation": "WAIT | INVESTIGATE | ESCALATE | CONTAIN | REQUEST_APPROVAL",
+  "recommendation": "WAIT | RESOLVED | INVESTIGATE | ESCALATE | CONTAIN | REQUEST_APPROVAL",
   "containment_action_identified": false
 }

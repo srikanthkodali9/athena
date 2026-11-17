@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     max_total_tokens: int = 14000
     investigation_deadline_seconds: int = 75
     max_tool_calls: int = 10
+    demo_incident_delay_seconds: float = Field(default=0.0, ge=0.0, le=300.0)
 
     # Inference (OpenAI-compatible vLLM). Empty base URLs => not configured.
     main_model_base_url: str = ""
@@ -154,6 +155,7 @@ class Settings(BaseSettings):
                 "max_total_tokens": self.max_total_tokens,
                 "max_tool_calls": self.max_tool_calls,
                 "investigation_deadline_seconds": self.investigation_deadline_seconds,
+                "demo_incident_delay_seconds": self.demo_incident_delay_seconds,
             },
             "degraded_mode": self.inference_is_mock or self.security_is_mock,
         }

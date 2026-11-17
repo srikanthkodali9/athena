@@ -1,0 +1,27 @@
+{
+  "fixture": "redis-incident-003",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "source": "prometheus-compatible",
+  "series": [
+    {
+      "metric": "checkout_http_5xx_rate",
+      "service": "checkout",
+      "unit": "ratio",
+      "points": [
+        {"t": "2026-07-19T14:28:00Z", "v": 0.005},
+        {"t": "2026-07-19T14:33:00Z", "v": 0.005}
+      ]
+    },
+    {
+      "metric": "redis_connected_clients",
+      "service": "redis",
+      "unit": "count",
+      "limit": 8000,
+      "points": [
+        {"t": "2026-07-19T14:28:00Z", "v": 180},
+        {"t": "2026-07-19T14:33:00Z", "v": 175}
+      ]
+    }
+  ]
+}

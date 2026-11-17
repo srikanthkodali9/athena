@@ -427,7 +427,10 @@ class HeartbeatService:
             return
         if cycle.state is not CycleState.COMPLETED:
             return
-        if cycle.decision is Decision.WAIT or cycle.learning is not None:
+        if (
+            cycle.decision in (Decision.WAIT, Decision.RESOLVED)
+            or cycle.learning is not None
+        ):
             return
         try:
             result = self._learning.learn_from_cycle(
@@ -497,8 +500,10 @@ class HeartbeatService:
         cycle.change_class = result.change_class
 
         if not result.investigation_required:
-            # No-change WAIT path — makes NO model calls (FR2-04).
-            cycle.decision = Decision.WAIT
+            # Terminal change-detection paths make NO model calls (FR2-04).
+            # A verified recovery may explicitly close the incident as RESOLVED;
+            # ordinary no-change heartbeats retain the WAIT decision.
+            cycle.decision = result.terminal_decision or Decision.WAIT
             cycle.skip_reason = result.skip_reason
             cycle.state_before = cycle.state
             cycle.state = CycleState.COMPLETED
@@ -508,7 +513,10 @@ class HeartbeatService:
                     (cycle.ended_at - cycle.started_at).total_seconds() * 1000, 3
                 )
             ctx.stop = True
-            return {"decision": "WAIT", "skip_reason": result.skip_reason}
+            return {
+                "decision": cycle.decision.value,
+                "skip_reason": result.skip_reason,
+            }
 
         cycle.decision = Decision.INVESTIGATE
         return {

@@ -1,0 +1,29 @@
+{
+  "fixture": "redis-incident-004",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "source": "prometheus-compatible",
+  "series": [
+    {
+      "evidence_id": "ev_metric-payments-5xx-41",
+      "metric": "payments_http_5xx_rate",
+      "service": "payments",
+      "unit": "ratio",
+      "points": [
+        {"t": "2026-07-19T15:38:00Z", "v": 0.005},
+        {"t": "2026-07-19T15:43:00Z", "v": 0.07}
+      ]
+    },
+    {
+      "evidence_id": "ev_metric-redis-conn-42",
+      "metric": "redis_connected_clients",
+      "service": "redis",
+      "unit": "count",
+      "limit": 5000,
+      "points": [
+        {"t": "2026-07-19T15:38:00Z", "v": 250},
+        {"t": "2026-07-19T15:43:00Z", "v": 4500}
+      ]
+    }
+  ]
+}

@@ -33,6 +33,22 @@ async def test_no_change_wait_path_makes_no_model_calls(harness):
     assert result.metrics.model_calls == 0
 
 
+async def test_verified_recovery_resolves_after_second_incident_without_model_calls(
+    harness,
+):
+    cycle, _ = harness.service.trigger(
+        HeartbeatCommand(fixture="redis-incident-003", reason="verify recovery")
+    )
+    result = await harness.service.run_cycle(cycle.cycle_id)
+
+    assert result.decision is Decision.RESOLVED
+    assert result.state is CycleState.COMPLETED
+    assert result.skip_reason == "recovery_verified_after_incident_two"
+    assert result.learning is None
+    assert harness.inference.calls == 0
+    assert result.metrics.model_calls == 0
+
+
 async def test_full_investigation_transitions_and_evidence(harness):
     cycle, _ = harness.service.trigger(
         HeartbeatCommand(fixture="redis-incident-001", reason="demo")

@@ -1,7 +1,7 @@
 """End-to-end demo flow in deterministic mock mode.
 
 Drives the full demo through the demo control plane, then asserts:
-* both incidents are persisted and completed,
+* all four incidents are persisted and completed,
 * the §21.3 security drill is visible on the real security routes,
 * the FR-14 comparison is computed from PERSISTED records (cross-checked
   against /metrics and /heartbeats),
@@ -10,6 +10,8 @@ Drives the full demo through the demo control plane, then asserts:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.ui.server import create_demo_app
@@ -17,6 +19,7 @@ from tests.demo.conftest import demo_settings
 
 # Stable (timing-independent) fields that must match across clean reruns.
 _STABLE_METRICS = ("model_calls", "tool_calls", "specialists_invoked", "total_tokens")
+_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _run_demo(client: TestClient) -> dict:
@@ -25,17 +28,33 @@ def _run_demo(client: TestClient) -> dict:
     return r.json()
 
 
-def test_full_demo_runs_and_persists_both_incidents(demo_client):
-    summary = _run_demo(demo_client)
-    one_id = summary["incident_one_cycle_id"]
-    two_id = summary["incident_two_cycle_id"]
-    assert one_id.startswith("cycle_") and two_id.startswith("cycle_")
+def test_start_demo_defaults_to_thirty_second_incident_delay():
+    script = (_ROOT / "scripts/start_demo.sh").read_text(encoding="utf-8")
+    assert (
+        'ATHENA_DEMO_INCIDENT_DELAY_SECONDS="${ATHENA_DEMO_INCIDENT_DELAY_SECONDS:-30}"'
+        in script
+    )
 
-    one = demo_client.get(f"/api/v1/heartbeats/{one_id}").json()
-    two = demo_client.get(f"/api/v1/heartbeats/{two_id}").json()
-    assert one["state"] == "completed" and two["state"] == "completed"
+
+def test_full_demo_runs_and_persists_four_incidents(demo_client):
+    summary = _run_demo(demo_client)
+    cycle_ids = summary["incident_cycle_ids"]
+    assert len(cycle_ids) == 4
+    assert all(cycle_id.startswith("cycle_") for cycle_id in cycle_ids)
+
+    cycles = [
+        demo_client.get(f"/api/v1/heartbeats/{cycle_id}").json()
+        for cycle_id in cycle_ids
+    ]
+    one, two, three, four = cycles
+    assert all(cycle["state"] == "completed" for cycle in cycles)
     assert one["decision"] == "ESCALATE"
     assert len(one["evidence_ids"]) == 3  # incident-one ground truth
+    assert two["decision"] == "ESCALATE"
+    assert three["decision"] == "RESOLVED"
+    assert three["state"] == "completed"
+    assert three["metrics"]["model_calls"] == 0
+    assert four["decision"] == "ESCALATE"
 
 
 def test_shared_dashboard_run_executes_both_fixture_workflows(demo_client):
@@ -45,6 +64,8 @@ def test_shared_dashboard_run_executes_both_fixture_workflows(demo_client):
     # compatibility, while the isolated fixture result is deliberately nested.
     assert summary["incident_one_cycle_id"].startswith("cycle_")
     assert summary["incident_two_cycle_id"].startswith("cycle_")
+    assert summary["incident_three_cycle_id"].startswith("cycle_")
+    assert summary["incident_four_cycle_id"].startswith("cycle_")
     assert summary["edge_cases"]["fixture_root"] == "fixtures/edge_cases"
     assert summary["edge_cases"]["passed"] is True
     assert len(summary["edge_cases"]["scenarios"]) == 2
@@ -53,6 +74,14 @@ def test_shared_dashboard_run_executes_both_fixture_workflows(demo_client):
     assert state["has_run"] is True
     assert state["edge_cases"]["passed"] is True
     assert len(state["edge_cases"]["validations"]) == 8
+
+    console = demo_client.get("/api/v1/demo/console").json()
+    assert len(console["incidents"]) == 4
+    resolved = next(
+        item for item in console["incidents"] if item["fixture"] == "redis-incident-003"
+    )
+    assert resolved["state"] == "completed"
+    assert resolved["decision"] == "RESOLVED"
 
 
 def test_autonomy_and_plan_visible_from_persisted_state(demo_client):
@@ -130,17 +159,15 @@ def test_demo_is_deterministic_across_clean_resets(tmp_path):
         app = create_demo_app(settings=settings)
         with TestClient(app) as client:
             summary = _run_demo(client)
-            one = client.get(
-                f"/api/v1/heartbeats/{summary['incident_one_cycle_id']}"
-            ).json()
-            two = client.get(
-                f"/api/v1/heartbeats/{summary['incident_two_cycle_id']}"
-            ).json()
-            return {"one": one, "two": two}
+            cycles = [
+                client.get(f"/api/v1/heartbeats/{cycle_id}").json()
+                for cycle_id in summary["incident_cycle_ids"]
+            ]
+            return dict(zip(("one", "two", "three", "four"), cycles))
 
     a = run("run_a")
     b = run("run_b")
-    for incident in ("one", "two"):
+    for incident in ("one", "two", "three", "four"):
         assert a[incident]["evidence_ids"] == b[incident]["evidence_ids"]
         assert a[incident]["decision"] == b[incident]["decision"]
         assert a[incident]["mid_cycle_decision"] == b[incident]["mid_cycle_decision"]
@@ -148,3 +175,18 @@ def test_demo_is_deterministic_across_clean_resets(tmp_path):
             assert a[incident]["metrics"][key] == b[incident]["metrics"][key], (
                 f"{incident}.{key} not deterministic"
             )
+
+
+def test_demo_applies_configured_delay_after_every_incident(tmp_path, monkeypatch):
+    delays: list[float] = []
+
+    async def record_delay(seconds: float) -> None:
+        delays.append(seconds)
+
+    monkeypatch.setattr("app.ui.demo_runner.asyncio.sleep", record_delay)
+    settings = demo_settings(tmp_path, demo_incident_delay_seconds=30)
+    app = create_demo_app(settings=settings)
+    with TestClient(app) as client:
+        _run_demo(client)
+
+    assert delays == [30, 30, 30, 30]

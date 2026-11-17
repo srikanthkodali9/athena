@@ -81,8 +81,8 @@ overridden, resets the SQLite demo state, and starts the dashboard at:
 
 Use one of the following ways to run the story:
 
-- Open the dashboard and select **Run both demos**. This one button runs the
-  standard `fixtures/incidents` story and the isolated `fixtures/edge_cases`
+- Open the dashboard and select **Run cycle**. This one button runs four
+  standard incident examples and the isolated `fixtures/edge_cases`
   workflow, then shows both result sets in separate dashboard sections.
 - From a second terminal, run the command-line replay:
 
@@ -90,8 +90,16 @@ Use one of the following ways to run the story:
   ./scripts/run_replay.sh
   ```
 
-The replay runs both Redis incidents, prints the persisted first-versus-learned
-comparison, and shows the sanitized HiddenLayer and OpenShell decisions.
+The replay runs four Redis incident examples, prints the persisted
+first-versus-learned comparison for incidents one and two, and shows the
+sanitized HiddenLayer and OpenShell decisions.
+
+`start_demo.sh` configures a 30-second pause after each incident. Override it
+for a faster local run without editing configuration files:
+
+```bash
+ATHENA_DEMO_INCIDENT_DELAY_SECONDS=0 ./scripts/start_demo.sh
+```
 
 Stop the server with `Ctrl+C`.
 
@@ -118,7 +126,7 @@ The workflow runs the two edge-cases Redis scenarios, promotes and reuses the
 ephemeral replay-validated skill, exercises the edge-cases security datasets, checks
 all eight edge cases, and enforces the required two-metric improvement gate.
 
-The dashboard's **Run both demos** button includes this workflow automatically
+The dashboard's **Run cycle** button includes this workflow automatically
 and displays it below the standard heartbeat panels. To run only the edge-cases
 workflow while the dashboard server is running, use its dedicated endpoint:
 

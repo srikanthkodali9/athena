@@ -1,0 +1,15 @@
+{
+  "fixture": "redis-incident-003",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "deployment": {
+    "object": "deployment/checkout",
+    "namespace": "prod",
+    "from_revision": "checkout-1204",
+    "to_revision": "checkout-1204",
+    "committed_at": "2026-07-19T14:28:00Z",
+    "replicas": 12,
+    "image_changed": false,
+    "changed_env": []
+  }
+}

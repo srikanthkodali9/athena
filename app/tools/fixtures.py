@@ -216,6 +216,80 @@ _FIXTURES: dict[str, dict[str, Any]] = {
             "security_sensitive": False,
         },
     },
+    # Recovery is verified immediately after incident two. Change detection
+    # closes it deterministically as RESOLVED without spending model budget.
+    "redis-incident-003": {
+        "metrics": [],
+        "change_signal": {
+            "source": "prometheus",
+            "kind": "recovery_verification",
+            "summary": "Checkout and Redis signals returned to baseline after incident two.",
+            "security_sensitive": False,
+            "change_class": "irrelevant",
+            "terminal_decision": "RESOLVED",
+            "skip_reason": "recovery_verified_after_incident_two",
+        },
+    },
+    # A fourth related incident proves that the learned Redis skill remains
+    # reusable beyond the resolved cycle.
+    "redis-incident-004": {
+        "metrics": [
+            {
+                "id": "ev_metric-payments-5xx-41",
+                "type": "metric",
+                "source": "prometheus",
+                "provenance": {
+                    "query": 'rate(http_requests_total{status=~"5..",service="payments"}[5m])',
+                    "window": "5m",
+                    "service": "payments",
+                },
+                "data": {"before": 0.005, "value": 0.07, "unit": "ratio"},
+            },
+            {
+                "id": "ev_metric-redis-conn-42",
+                "type": "metric",
+                "source": "prometheus",
+                "provenance": {
+                    "query": "redis_connected_clients",
+                    "window": "5m",
+                    "service": "redis",
+                },
+                "data": {
+                    "before": 250,
+                    "value": 4500,
+                    "limit": 5000,
+                    "unit": "count",
+                },
+            },
+        ],
+        "deployment_diff": {
+            "id": "ev_diff-payments-deploy-11",
+            "type": "diff",
+            "source": "kubernetes",
+            "provenance": {
+                "object": "deployment/payments",
+                "from_revision": "payments-808",
+                "to_revision": "payments-809",
+                "committed_at": "2026-07-19T15:42:00Z",
+            },
+            "data": {
+                "changed": [
+                    {
+                        "field": "spec.template.spec.containers[0].env.REDIS_POOL_MAX",
+                        "from": "80",
+                        "to": "420",
+                    }
+                ],
+                "image_changed": False,
+            },
+        },
+        "change_signal": {
+            "source": "prometheus",
+            "kind": "metric_threshold_breach",
+            "summary": "Payments 5xx ratio rose while Redis clients reached 90% of the limit.",
+            "security_sensitive": False,
+        },
+    },
 }
 
 

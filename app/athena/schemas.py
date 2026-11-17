@@ -39,6 +39,7 @@ class Decision(str, enum.Enum):
     """Heartbeat decision values (PRD 12.2)."""
 
     WAIT = "WAIT"
+    RESOLVED = "RESOLVED"
     INVESTIGATE = "INVESTIGATE"
     ESCALATE = "ESCALATE"
     CONTINUE = "CONTINUE"

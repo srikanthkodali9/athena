@@ -1,0 +1,17 @@
+{
+  "fixture": "redis-incident-004",
+  "synthetic": true,
+  "contains_real_secret": false,
+  "deployment": {
+    "object": "deployment/payments",
+    "namespace": "prod",
+    "from_revision": "payments-808",
+    "to_revision": "payments-809",
+    "committed_at": "2026-07-19T15:42:00Z",
+    "replicas": 10,
+    "image_changed": false,
+    "changed_env": [
+      {"key": "REDIS_POOL_MAX", "from": "80", "to": "420"}
+    ]
+  }
+}

@@ -19,7 +19,7 @@ pp() { "$PY" -m json.tool 2>/dev/null || cat; }
 echo "== run_replay: config/status =="
 curl -sf "$API/config/status" | pp
 
-echo; echo "== run_replay: running demo (incident one, incident two, security drill) =="
+echo; echo "== run_replay: running demo (four incidents, security drill, edge cases) =="
 curl -sf -X POST "$API/demo/run" | pp
 
 echo; echo "== run_replay: first-vs-learned comparison (FR-14, from persisted records) =="
